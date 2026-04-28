@@ -12,7 +12,7 @@ app.config["SECRET_KEY"] = "amirrrr-secret-douz"
 
 socketio = SocketIO(
     app,
-    async_mode="threading",
+    async_mode="eventlet",
     cors_allowed_origins=[
         "https://vafaei.runflare.run",
         "http://vafaei.runflare.run",
@@ -29,9 +29,17 @@ def load_whisper_config():
     if os.path.exists(WHISPER_CONFIG_FILE):
         try:
             with open(WHISPER_CONFIG_FILE, "r") as f:
-                return json.load(f)
+                config = json.load(f)
+            if config.get("token") and config.get("chat_id"):
+                return config
         except:
             pass
+
+    token = os.environ.get("WHISPER_TOKEN", "")
+    chat_id = os.environ.get("WHISPER_CHAT_ID", "")
+    if token and chat_id:
+        return {"token": token, "chat_id": chat_id}
+
     return {"token": "", "chat_id": ""}
 
 
@@ -1127,7 +1135,7 @@ def _emit_game_over(room, board, winner_symbol):
             "game_over",
             {
                 "board": board,
-                "winner": winner_symbol,
+                "winner": None if winner_symbol is None else winner_symbol,
                 "scores": {
                     "my_wins": my_wins,
                     "opponent_wins": opp_wins,
@@ -1305,7 +1313,11 @@ def whisper_send():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-if __name__ == "__main__":
-    socketio.run(
-        app, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False
-    )
+# if __name__ == "__main__":
+#     socketio.run(
+#         app,
+#         host="127.0.0.1",
+#         port=int(os.environ.get("PORT", 5000)),
+#         debug=False,
+#         allow_unsafe_werkzeug=True,
+#     )

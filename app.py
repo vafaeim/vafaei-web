@@ -13,6 +13,7 @@ from flask import session, redirect, url_for
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["SECRET_KEY"] = "amirrrr-secret-douz"
+VERIFY_BOT_TOKEN = os.environ.get("VERIFY_BOT_TOKEN", "")
 
 socketio = SocketIO(
     app,
@@ -84,7 +85,7 @@ def init_db():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS otps (
                 id SERIAL PRIMARY KEY,
-                code VARCHAR(6) NOT NULL,
+                code VARCHAR(10) NOT NULL,
                 session_token VARCHAR(64) UNIQUE NOT NULL,
                 rubika_chat_id VARCHAR,
                 created_at_unix BIGINT NOT NULL,
@@ -92,6 +93,7 @@ def init_db():
                 used BOOLEAN DEFAULT FALSE
             );
         """)
+        cur.execute("ALTER TABLE otps ALTER COLUMN code TYPE VARCHAR(10)")
         cur.execute(
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS rubika_chat_id VARCHAR UNIQUE"
         )
@@ -105,6 +107,7 @@ def init_db():
 
 with app.app_context():
     init_db()
+
 
 WHISPER_CONFIG_FILE = "whisper_config.json"
 SECRET_KEY = "kavan2026"
@@ -1201,7 +1204,6 @@ DOUZ_HTML = r"""
       <button id="replayBtn" class="hidden">replay</button>
     </div>
   </div>
-
   <script src="/static/socket.io.min.js"></script>
   <script>
     const body = document.body;
@@ -1348,15 +1350,15 @@ DOUZ_HTML = r"""
 
 LOGIN_HTML = r"""
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Login</title>
+  <title>ورود امن</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Vazirmatn', Tahoma, sans-serif;
       background: #17212b;
       color: #fff;
       display: flex;
@@ -1370,60 +1372,135 @@ LOGIN_HTML = r"""
       padding: 2rem;
       border-radius: 1.5rem;
       text-align: center;
-      max-width: 400px;
+      max-width: 420px;
       width: 100%;
       box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
-    h2 { margin-bottom: 1rem; font-size: 1.5rem; }
-    .code {
-      font-size: 2.5rem;
-      font-weight: 700;
-      letter-spacing: 0.5rem;
+    h2 { margin-bottom: 0.25rem; font-size: 1.5rem; }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #aab2bb;
+      margin-bottom: 1.5rem;
+    }
+    .token-box {
       background: #212e3c;
-      padding: 0.8rem;
-      border-radius: 0.8rem;
-      margin: 1.5rem 0;
+      border-radius: 1rem;
+      padding: 1rem;
+      margin: 1rem 0;
+    }
+    .token {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: 0.3rem;
       color: #2b9cff;
       user-select: all;
+      word-break: break-all;
+      font-family: 'Courier New', monospace;
+      margin-bottom: 0.5rem;
     }
-    .info {
-      font-size: 0.9rem;
+    .copy-hint {
+      font-size: 0.75rem;
+      color: #8ea2b8;
+    }
+    .bot-box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      background: #212e3c;
+      border-radius: 1rem;
+      padding: 0.8rem;
+      margin: 1.2rem 0;
+      text-decoration: none;
+      color: #fff;
+      transition: background 0.2s;
+    }
+    .bot-box:hover { background: #2b5278; }
+    .bot-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background-image: url('/static/assets/images/verifymebot.png');
+      background-size: cover;
+      background-position: center;
+    }
+    .bot-name {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+    .bot-link {
+      font-size: 0.75rem;
       color: #aab2bb;
-      margin: 1rem 0;
     }
     .timer {
       font-size: 0.9rem;
       color: #ffb300;
-      margin: 0.8rem 0;
+      margin: 1rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
     }
-    .btn {
-      background: #2b5278;
-      color: #fff;
-      border: none;
-      padding: 0.8rem 2rem;
+    .status {
+      margin: 1rem 0 0.5rem;
+      font-size: 0.9rem;
+      min-height: 1.5rem;
+    }
+    .error { color: #ff4d4d; }
+    .success { color: #34d399; }
+    .info { color: #aab2bb; }
+    .animate-pulse {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    .btn-secondary {
+      background: transparent;
+      color: #8ea2b8;
+      border: 1px solid #2b3a4a;
+      padding: 0.8rem 1.5rem;
       border-radius: 0.8rem;
       font-size: 1rem;
       cursor: pointer;
       transition: background 0.2s;
-      margin-top: 1rem;
+      font-family: inherit;
+      margin-top: 0.5rem;
     }
-    .btn:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
-    .btn:hover:not(:disabled) { background: #3a6a99; }
-    .error { color: #ff4d4d; margin-top: 1rem; font-size: 0.9rem; }
-    .success { color: #34d399; margin-top: 1rem; font-size: 0.9rem; }
+    .btn-secondary:hover { background: #212e3c; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>🔐 ورود با ربات</h2>
-    <p class="info">کد زیر را به ربات روبیکا ارسال کن:</p>
-    <div class="code" id="otpCode">{{ code }}</div>
-    <p class="timer" id="timer">زمان باقی‌مانده: ۹۰ ثانیه</p>
-    <button class="btn" id="verifyBtn" onclick="checkVerification()">بررسی تأیید</button>
-    <div id="status"></div>
+    <h2>🔐 ورود امن</h2>
+    <p class="subtitle">با ربات VerifymeBot احراز هویت کنید</p>
+
+    <div class="token-box">
+      <div class="token" id="otpCode">{{ code }}</div>
+      <div class="copy-hint">توکن را کپی کرده و برای ربات ارسال کنید</div>
+    </div>
+
+    <a class="bot-box" href="https://rubika.ir/verifymebot" target="_blank">
+      <div class="bot-icon"></div>
+      <div>
+        <div class="bot-name">VerifymeBot</div>
+        <div class="bot-link">@verifymebot</div>
+      </div>
+    </a>
+
+    <div class="timer" id="timer">
+      <span>⏳</span> <span id="timerText">زمان باقی‌مانده: ۹۰ ثانیه</span>
+    </div>
+
+    <div id="status" class="status">
+      <div class="info animate-pulse">در حال گوش دادن به پیام شما...</div>
+    </div>
+
+    <button class="btn-secondary" onclick="window.location.reload()">
+      دریافت توکن جدید
+    </button>
   </div>
 
   <script>
@@ -1431,8 +1508,9 @@ LOGIN_HTML = r"""
     const otpToken = "{{ otp_token }}";
     let timeLeft = 90;
     let expired = false;
-    const timerEl = document.getElementById('timer');
-    const verifyBtn = document.getElementById('verifyBtn');
+    let checking = false;
+
+    const timerEl = document.getElementById('timerText');
     const statusEl = document.getElementById('status');
 
     function updateTimer() {
@@ -1440,41 +1518,49 @@ LOGIN_HTML = r"""
       timeLeft--;
       if (timeLeft <= 0) {
         expired = true;
-        timerEl.textContent = '⏰ کد منقضی شد. صفحه را رفرش کن.';
-        verifyBtn.disabled = true;
+        timerEl.textContent = 'زمان به پایان رسید';
+        statusEl.innerHTML = '<div class="error">کد منقضی شد. لطفاً توکن جدید دریافت کنید.</div>';
         return;
       }
-      timerEl.textContent = `زمان باقی‌مانده: ${timeLeft} ثانیه`;
+      const mins = Math.floor(timeLeft / 60);
+      const secs = timeLeft % 60;
+      timerEl.textContent = `زمان باقی‌مانده: ${mins}:${secs.toString().padStart(2, '0')}`;
     }
     setInterval(updateTimer, 1000);
 
     async function checkVerification() {
-      if (expired) {
-        statusEl.innerHTML = '<div class="error">کد منقضی شده است.</div>';
-        return;
-      }
-      verifyBtn.disabled = true;
-      statusEl.innerHTML = '<div class="info">⏳ در حال بررسی...</div>';
+      if (expired || checking) return;
+      checking = true;
+      statusEl.innerHTML = '<div class="info animate-pulse">در حال بررسی...</div>';
 
       try {
         const resp = await fetch(`/api/verify_otp?code=${encodeURIComponent(code)}&otp_token=${encodeURIComponent(otpToken)}`);
         const data = await resp.json();
         if (data.success) {
-          statusEl.innerHTML = '<div class="success">✅ تأیید شد! در حال انتقال...</div>';
-          setTimeout(() => { window.location.href = '/chat'; }, 1000);
+          statusEl.innerHTML = '<div class="success">تأیید شد! در حال انتقال...</div>';
+          setTimeout(() => {
+            if (data.new_user) {
+              window.location.href = '/set-username';
+            } else {
+              window.location.href = '/chat';
+            }
+          }, 800);
         } else {
-          statusEl.innerHTML = `<div class="error">❌ ${data.error || 'هنوز تأیید نشده'}</div>`;
-          verifyBtn.disabled = false;
+          statusEl.innerHTML = '<div class="info animate-pulse">در حال گوش دادن به پیام شما...</div>';
+          checking = false;
         }
       } catch (err) {
-        statusEl.innerHTML = '<div class="error">⚠️ خطای شبکه</div>';
-        verifyBtn.disabled = false;
+        statusEl.innerHTML = '<div class="info animate-pulse">تلاش مجدد...</div>';
+        checking = false;
       }
     }
 
+    checkVerification();
     setInterval(() => {
-      if (!expired && !verifyBtn.disabled) checkVerification();
-    }, 5000);
+      if (!expired && !checking) {
+        checkVerification();
+      }
+    }, 2000);
   </script>
 </body>
 </html>
@@ -1862,11 +1948,13 @@ CHAT_HTML = r"""
 </head>
 <body>
   <div class="app-container">
-    <!-- SIDEBAR -->
     <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <span class="title">Chats</span>
-        <button class="theme-toggle" onclick="toggleTheme()">◑</button>
+        <div style="display:flex;align-items:center;gap:0.3rem;">
+          <button id="changeUsernameSidebarBtn" class="theme-toggle" style="font-size:1rem;" title="Change Username">✏️</button>
+          <button class="theme-toggle" onclick="toggleTheme()">◑</button>
+        </div>
       </div>
       <div class="search-box">
         <input type="text" id="searchUserInput" placeholder="Search user..." oninput="searchUsers()">
@@ -1875,7 +1963,6 @@ CHAT_HTML = r"""
       <div class="chat-list" id="chatList"></div>
     </div>
 
-    <!-- MAIN CHAT -->
     <div class="main-chat" id="mainChat">
       <div class="chat-header">
         <button class="back-btn" onclick="backToChats()">←</button>
@@ -1895,6 +1982,24 @@ CHAT_HTML = r"""
     </div>
   </div>
 
+  <div id="usernameModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.6);z-index:200;justify-content:center;align-items:center;">
+    <div style="background:var(--chat-bg);padding:2rem;border-radius:1.5rem;max-width:320px;width:100%;text-align:center;
+      border:1px solid var(--border-color);">
+      <h3 style="color:var(--text-primary);margin-bottom:1rem;">Change Username</h3>
+      <input type="text" id="newUsernameInput" placeholder="New username"
+        style="width:100%;padding:0.6rem;background:var(--input-bg);border:1px solid var(--border-color);
+        border-radius:0.8rem;color:var(--text-primary);margin-bottom:1rem;font-size:16px;">
+      <div>
+        <button id="saveUsernameBtn" style="background:#2b5278;color:#fff;border:none;padding:0.5rem 1.5rem;
+          border-radius:0.8rem;cursor:pointer;font-size:0.9rem;">Save</button>
+        <button id="cancelUsernameBtn" style="background:transparent;color:var(--btn-color);
+          border:1px solid var(--border-color);padding:0.5rem 1.5rem;border-radius:0.8rem;cursor:pointer;
+          margin-left:0.5rem;font-size:0.9rem;">Cancel</button>
+      </div>
+      <div id="usernameMsg" style="margin-top:1rem;font-size:0.9rem;"></div>
+    </div>
+  </div>
   <script src="/static/socket.io.min.js"></script>
   <script>
     const body = document.body;
@@ -2098,10 +2203,157 @@ CHAT_HTML = r"""
     window.addEventListener('load', () => {
       document.getElementById('searchUserInput').focus();
     });
+    const usernameModal = document.getElementById('usernameModal');
+    const newUsernameInput = document.getElementById('newUsernameInput');
+    const saveUsernameBtn = document.getElementById('saveUsernameBtn');
+    const cancelUsernameBtn = document.getElementById('cancelUsernameBtn');
+    const usernameMsg = document.getElementById('usernameMsg');
+
+    const changeUsernameSidebarBtn = document.getElementById('changeUsernameSidebarBtn');
+    if (changeUsernameSidebarBtn) {
+      changeUsernameSidebarBtn.addEventListener('click', () => {
+        usernameModal.style.display = 'flex';
+        newUsernameInput.value = currentUsername || '';
+        newUsernameInput.focus();
+      });
+    }
+
+    cancelUsernameBtn.addEventListener('click', () => {
+      usernameModal.style.display = 'none';
+      newUsernameInput.value = '';
+      usernameMsg.textContent = '';
+    });
+
+    saveUsernameBtn.addEventListener('click', async () => {
+      const newName = newUsernameInput.value.trim();
+      if (!newName) {
+        usernameMsg.textContent = 'Username cannot be empty.';
+        usernameMsg.style.color = '#ff4d4d';
+        return;
+      }
+
+      try {
+        const resp = await fetch('/api/change_username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: newName })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          currentUsername = newName;
+          usernameMsg.textContent = 'Username updated successfully!';
+          usernameMsg.style.color = '#34d399';
+          setTimeout(() => {
+            usernameModal.style.display = 'none';
+          }, 1000);
+          loadChats();
+        } else {
+          usernameMsg.textContent = data.error || 'Failed to update.';
+          usernameMsg.style.color = '#ff4d4d';
+        }
+      } catch (err) {
+        usernameMsg.textContent = 'Network error.';
+        usernameMsg.style.color = '#ff4d4d';
+      }
+    });
   </script>
 </body>
 </html>
 """
+
+SET_USERNAME_HTML = r"""
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>انتخاب نام کاربری</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Vazirmatn', Tahoma, sans-serif;
+      background: #17212b;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+    .card {
+      background: #0e1621;
+      padding: 2rem;
+      border-radius: 1.5rem;
+      text-align: center;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    h2 { margin-bottom: 1rem; }
+    input {
+      width: 100%;
+      padding: 0.8rem;
+      font-size: 1rem;
+      background: #212e3c;
+      border: 1px solid #2b3a4a;
+      border-radius: 0.8rem;
+      color: #fff;
+      margin: 1rem 0;
+      outline: none;
+      font-family: inherit;
+    }
+    .btn {
+      background: #2b5278;
+      color: #fff;
+      border: none;
+      padding: 0.8rem 2rem;
+      border-radius: 0.8rem;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 1rem;
+    }
+    .btn:hover { background: #3a6a99; }
+    .error { color: #ff4d4d; margin-top: 1rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>👤 نام کاربری خود را انتخاب کنید</h2>
+    <p style="color: #aab2bb; font-size: 0.9rem;">این نام برای دوستان شما قابل جستجو خواهد بود.</p>
+    <input type="text" id="usernameInput" placeholder="مثلاً amirrrr" maxlength="50">
+    <button class="btn" onclick="submitUsername()">ذخیره و ادامه</button>
+    <div id="errorMsg" class="error"></div>
+  </div>
+
+  <script>
+    async function submitUsername() {
+      const username = document.getElementById('usernameInput').value.trim();
+      if (!username) {
+        document.getElementById('errorMsg').textContent = 'نام کاربری نمی‌تواند خالی باشد.';
+        return;
+      }
+      try {
+        const resp = await fetch('/api/set_username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          window.location.href = '/chat';
+        } else {
+          document.getElementById('errorMsg').textContent = data.error || 'خطا در ثبت نام کاربری.';
+        }
+      } catch (err) {
+        document.getElementById('errorMsg').textContent = 'خطای شبکه.';
+      }
+    }
+  </script>
+</body>
+</html>
+"""
+
 
 dous_rooms = {}
 
@@ -2396,15 +2648,38 @@ def handle_join_chat_room(data):
         join_room(f"chat_{chat_id}")
 
 
-def rubika_get_updates(token, limit=50):
+def rubika_get_updates(token, max_pages=5):
     url = f"https://botapi.rubika.ir/v3/{token}/getUpdates"
-    try:
-        resp = requests.post(url, json={"limit": str(limit)}, timeout=10)
-        if resp.ok:
-            return resp.json()
-    except:
-        pass
-    return None
+    offset_id = None
+    all_updates = []
+
+    for _ in range(max_pages):
+        payload = {"limit": "100"}
+        if offset_id:
+            payload["offset_id"] = offset_id
+
+        try:
+            resp = requests.post(url, json=payload, timeout=10)
+            if not resp.ok:
+                break
+            data = resp.json()
+            if data.get("status") != "OK":
+                break
+
+            updates = data.get("data", {}).get("updates", [])
+            if not updates:
+                break
+            all_updates.extend(updates)
+
+            next_offset = data.get("data", {}).get("next_offset_id")
+            if next_offset:
+                offset_id = next_offset
+            else:
+                break
+        except:
+            break
+
+    return {"status": "OK", "data": {"updates": all_updates}} if all_updates else None
 
 
 def rubika_get_chat(token, chat_id):
@@ -2590,7 +2865,7 @@ def search_users():
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 "SELECT id, username FROM users WHERE username ILIKE %s LIMIT 10",
-                (f"%{query}%",),
+                (query,),
             )
             users = cur.fetchall()
     return jsonify(users)
@@ -2696,7 +2971,37 @@ def login():
     if "user_id" in session:
         return redirect(url_for("chat_page"))
 
-    code = str(random.randint(100000, 999999))
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        chat_id = session.get("temp_rubika_chat_id")
+        if not username or not chat_id:
+            return redirect(url_for("login"))
+
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                try:
+                    cur.execute(
+                        "INSERT INTO users (username, rubika_chat_id) VALUES (%s, %s) RETURNING id",
+                        (username, chat_id),
+                    )
+                    user = cur.fetchone()
+                    conn.commit()
+                    session.pop("temp_rubika_chat_id", None)
+                    session["user_id"] = user["id"]
+                    session["username"] = username
+                    return redirect(url_for("chat_page"))
+                except psycopg2.errors.UniqueViolation:
+                    conn.rollback()
+                    return render_template_string(
+                        LOGIN_HTML,
+                        error="This username is already taken. Please choose another.",
+                    )
+
+        return redirect(url_for("login"))
+
+    code = "".join(
+        secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8)
+    )
     otp_token = secrets.token_hex(32)
     now_unix = int(datetime.utcnow().timestamp())
     expires_unix = now_unix + 90
@@ -2712,6 +3017,34 @@ def login():
     return render_template_string(LOGIN_HTML, code=code, otp_token=otp_token)
 
 
+@app.route("/api/set_username", methods=["POST"])
+def set_username():
+    if "temp_rubika_chat_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json()
+    username = data.get("username", "").strip()
+    if not username:
+        return jsonify({"error": "Username cannot be empty."}), 400
+
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            try:
+                cur.execute(
+                    "INSERT INTO users (username, rubika_chat_id) VALUES (%s, %s) RETURNING id",
+                    (username, session["temp_rubika_chat_id"]),
+                )
+                user = cur.fetchone()
+                conn.commit()
+                session.pop("temp_rubika_chat_id", None)
+                session["user_id"] = user["id"]
+                session["username"] = username
+                return jsonify({"success": True})
+            except psycopg2.errors.UniqueViolation:
+                conn.rollback()
+                return jsonify({"error": "Username already taken"}), 409
+
+
 @app.route("/api/verify_otp")
 def verify_otp():
     code = request.args.get("code", "").strip()
@@ -2720,6 +3053,8 @@ def verify_otp():
         return jsonify({"success": False, "error": "پارامترها ناقص هستند."})
 
     with get_db() as conn:
+        if conn is None:
+            return jsonify({"error": "Database not available"}), 503
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 "SELECT * FROM otps WHERE session_token = %s AND used = FALSE AND expires_at_unix > %s",
@@ -2729,23 +3064,19 @@ def verify_otp():
             if not otp_record:
                 return jsonify({"success": False, "error": "کد منقضی یا نامعتبر."})
 
-            config = load_whisper_config()
-            token = config.get("token")
+            token = VERIFY_BOT_TOKEN
             if not token:
-                return jsonify({"success": False, "error": "ربات تنظیم نشده است."})
+                return jsonify(
+                    {"success": False, "error": "ربات تأیید هویت تنظیم نشده است."}
+                )
 
-            updates_data = rubika_get_updates(token, limit=100)
+            updates_data = rubika_get_updates(token, max_pages=2)
             if not updates_data or updates_data.get("status") != "OK":
-                app.logger.error(f"getUpdates failed: {updates_data}")
                 return jsonify(
                     {"success": False, "error": "خطا در دریافت پیام‌های ربات."}
                 )
 
             updates = updates_data.get("data", {}).get("updates", [])
-            app.logger.info(
-                f"Searching for code {repr(code)} among {len(updates)} updates"
-            )
-
             verified_chat_id = None
             for update in updates:
                 if update.get("type") == "NewMessage":
@@ -2755,54 +3086,82 @@ def verify_otp():
                         otp_created = int(otp_record["created_at_unix"])
                         if msg_time >= otp_created:
                             verified_chat_id = update.get("chat_id")
-                            app.logger.info(f"Match found! chat_id={verified_chat_id}")
                             break
 
             if not verified_chat_id:
-                app.logger.warning(f"Code {code} not found in updates")
                 return jsonify(
                     {"success": False, "error": "هنوز پیامی با این کد دریافت نشده."}
                 )
-
-            chat_data = rubika_get_chat(token, verified_chat_id)
-            if not chat_data or chat_data.get("status") != "OK":
-                app.logger.error(f"getChat failed: {chat_data}")
-                return jsonify(
-                    {"success": False, "error": "خطا در دریافت اطلاعات کاربر."}
-                )
-
-            user_info = chat_data["data"]["chat"]
-            rubika_username = user_info.get("username", "")
-            rubika_first_name = user_info.get("first_name", rubika_username or "کاربر")
-            display_name = rubika_first_name or rubika_username or "کاربر"
-
-            cur.execute(
-                "SELECT id FROM users WHERE rubika_chat_id = %s", (verified_chat_id,)
-            )
-            existing_user = cur.fetchone()
-            if existing_user:
-                user_id = existing_user["id"]
-                cur.execute(
-                    "UPDATE users SET username = %s WHERE id = %s",
-                    (display_name, user_id),
-                )
-            else:
-                cur.execute(
-                    "INSERT INTO users (username, rubika_chat_id) VALUES (%s, %s) RETURNING id",
-                    (display_name, verified_chat_id),
-                )
-                user = cur.fetchone()
-                user_id = user["id"]
 
             cur.execute(
                 "UPDATE otps SET used = TRUE, rubika_chat_id = %s WHERE id = %s",
                 (verified_chat_id, otp_record["id"]),
             )
-            conn.commit()
 
-    session["user_id"] = user_id
-    session["username"] = display_name
-    return jsonify({"success": True})
+            chat_data = rubika_get_chat(token, verified_chat_id)
+            if not chat_data or chat_data.get("status") != "OK":
+                return jsonify(
+                    {"success": False, "error": "خطا در دریافت اطلاعات کاربر."}
+                )
+
+            user_info = chat_data["data"]["chat"]
+            rubika_first_name = (
+                user_info.get("first_name", "")
+                or user_info.get("username", "")
+                or "کاربر"
+            )
+
+            cur.execute(
+                "SELECT id, username FROM users WHERE rubika_chat_id = %s",
+                (verified_chat_id,),
+            )
+            existing_user = cur.fetchone()
+
+            if existing_user:
+                user_id = existing_user["id"]
+                display_name = existing_user["username"] or rubika_first_name
+                conn.commit()
+                session["user_id"] = user_id
+                session["username"] = display_name
+                return jsonify({"success": True, "new_user": False})
+            else:
+                session["temp_rubika_chat_id"] = verified_chat_id
+                conn.commit()
+                return jsonify({"success": True, "new_user": True})
+
+
+@app.route("/api/change_username", methods=["POST"])
+def change_username():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.get_json()
+    new_username = data.get("username", "").strip()
+    if not new_username:
+        return jsonify({"error": "Username required"}), 400
+
+    with get_db() as conn:
+        if conn is None:
+            return jsonify({"error": "Database not available"}), 503
+        with conn.cursor() as cur:
+            try:
+                cur.execute(
+                    "UPDATE users SET username = %s WHERE id = %s",
+                    (new_username, session["user_id"]),
+                )
+                conn.commit()
+                session["username"] = new_username
+                return jsonify({"success": True})
+            except psycopg2.errors.UniqueViolation:
+                conn.rollback()
+                return jsonify({"error": "Username already taken"}), 409
+
+
+@app.route("/set-username")
+def set_username_page():
+    if "temp_rubika_chat_id" not in session:
+        return redirect(url_for("login"))
+    return render_template_string(SET_USERNAME_HTML)
 
 
 # if __name__ == "__main__":

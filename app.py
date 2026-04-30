@@ -46,25 +46,20 @@ def get_db():
         pass
 
     conn = psycopg2.connect(db_url)
+    return conn
+
+
+def init_db():
+    conn = get_db()
+    if conn is None:
+        print("WARNING: Database not available, skipping initialization.")
+        return
     with conn.cursor() as cur:
-        cur.execute(
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS rubika_chat_id VARCHAR UNIQUE"
-        )
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS otps (
-                id SERIAL PRIMARY KEY,
-                code VARCHAR(6) NOT NULL,
-                session_token VARCHAR(64) UNIQUE NOT NULL,
-                rubika_chat_id VARCHAR,
-                created_at_unix BIGINT NOT NULL,
-                expires_at_unix BIGINT NOT NULL,
-                used BOOLEAN DEFAULT FALSE
-            );
-        """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 username VARCHAR(50) UNIQUE NOT NULL,
+                rubika_chat_id VARCHAR UNIQUE,
                 created_at TIMESTAMP DEFAULT NOW()
             );
         """)
@@ -82,15 +77,34 @@ def get_db():
                 chat_id INT REFERENCES chats(id),
                 sender_id INT REFERENCES users(id),
                 text TEXT NOT NULL,
+                reply_to_id INT REFERENCES messages(id),
                 created_at TIMESTAMP DEFAULT NOW()
             );
         """)
         cur.execute("""
-            ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INT REFERENCES messages(id)
+            CREATE TABLE IF NOT EXISTS otps (
+                id SERIAL PRIMARY KEY,
+                code VARCHAR(6) NOT NULL,
+                session_token VARCHAR(64) UNIQUE NOT NULL,
+                rubika_chat_id VARCHAR,
+                created_at_unix BIGINT NOT NULL,
+                expires_at_unix BIGINT NOT NULL,
+                used BOOLEAN DEFAULT FALSE
+            );
         """)
-        conn.commit()
-    return conn
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS rubika_chat_id VARCHAR UNIQUE"
+        )
+        cur.execute(
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INT REFERENCES messages(id)"
+        )
+    conn.commit()
+    conn.close()
+    print("INFO: Database initialized successfully.")
 
+
+with app.app_context():
+    init_db()
 
 WHISPER_CONFIG_FILE = "whisper_config.json"
 SECRET_KEY = "kavan2026"
@@ -1187,6 +1201,7 @@ DOUZ_HTML = r"""
       <button id="replayBtn" class="hidden">replay</button>
     </div>
   </div>
+
   <script src="/static/socket.io.min.js"></script>
   <script>
     const body = document.body;
@@ -1197,147 +1212,135 @@ DOUZ_HTML = r"""
     (localStorage.getItem('theme') === 'light') ? body.classList.add('light-mode') : body.classList.remove('light-mode');
 
     const socket = io({ transports: ['polling'] });
-    let currentUsername = null;
-    let activeChatId = null;
 
-    fetch('/api/whoami').then(r => r.json()).then(d => { currentUsername = d.username; }).catch(() => {});
+    let myRoom = null;
+    let mySymbol = null;
+    let currentTurn = null;
 
-    socket.on('connect', () => {
-      socket.emit('join_chat');
+    const lobby = document.getElementById('lobby');
+    const gameArea = document.getElementById('gameArea');
+    const statusDiv = document.getElementById('status');
+    const roomCodeSpan = document.getElementById('roomCode');
+    const cells = document.querySelectorAll('.cell');
+    const replayBtn = document.getElementById('replayBtn');
+    const leaveBtn = document.getElementById('leaveBtn');
+    const myWinsSpan = document.getElementById('myWins');
+    const oppWinsSpan = document.getElementById('oppWins');
+    const drawsSpan = document.getElementById('draws');
+
+    document.getElementById('createRoomBtn').addEventListener('click', () => {
+      socket.emit('create_room');
     });
 
-    socket.on('new_message', (msg) => {
-      const chatId = Number(msg.chat_id);
-      if (activeChatId === chatId) {
-        appendMessage(msg, msg.sender_username === currentUsername);
+    document.getElementById('joinRoomBtn').addEventListener('click', () => {
+      const code = document.getElementById('roomInput').value.trim().toUpperCase();
+      if (code) socket.emit('join_room', {room: code});
+    });
+
+    cells.forEach(cell => {
+      cell.addEventListener('click', () => {
+        if (!mySymbol || currentTurn !== mySymbol) return;
+        const idx = cell.dataset.idx;
+        socket.emit('make_move', {room: myRoom, index: idx});
+      });
+    });
+
+    socket.on('room_created', (data) => {
+      myRoom = data.room;
+      joinGameRoom(data.room);
+      roomCodeSpan.textContent = data.room;
+      statusDiv.textContent = 'waiting for opponent...';
+      updateScores({my_wins: 0, opponent_wins: 0, draws: 0});
+    });
+
+    socket.on('room_joined', (data) => {
+      myRoom = data.room;
+      joinGameRoom(data.room);
+      roomCodeSpan.textContent = data.room;
+    });
+
+    socket.on('game_start', (data) => {
+      mySymbol = data.symbol;
+      currentTurn = 'X';
+      statusDiv.textContent = data.symbol === 'X' ? 'your turn' : 'opponent turn';
+      updateBoard(data.board);
+      updateScores(data.scores);
+      replayBtn.classList.add('hidden');
+    });
+
+    socket.on('board_update', (data) => {
+      updateBoard(data.board);
+      currentTurn = data.turn;
+      statusDiv.textContent = data.turn === mySymbol ? 'your turn' : 'opponent turn';
+    });
+
+    socket.on('game_over', (data) => {
+      updateBoard(data.board);
+      if (data.winner) {
+        const winText = data.winner === mySymbol ? 'you won!' : 'you lost';
+        statusDiv.textContent = winText;
+      } else {
+        statusDiv.textContent = 'draw';
       }
-      loadChats();
+      currentTurn = null;
+      updateScores(data.scores);
+      replayBtn.classList.remove('hidden');
+      replayBtn.textContent = 'replay';
+      replayBtn.disabled = false;
     });
 
-    socket.on('new_message_notification', () => {
-      loadChats();
+    socket.on('opponent_left', () => {
+      statusDiv.textContent = 'opponent left the room';
+      currentTurn = null;
+      replayBtn.classList.add('hidden');
     });
 
-    function searchUsers() {
-      const q = document.getElementById('searchUserInput').value.trim();
-      const resultsDiv = document.getElementById('searchResults');
-      if (!q) { resultsDiv.style.display = 'none'; return; }
-      fetch(`/api/search_users?q=${encodeURIComponent(q)}`)
-        .then(r => r.json())
-        .then(users => {
-          resultsDiv.innerHTML = users.map(u =>
-            `<div class="search-result-item" onclick="startChat('${u.id}')">${u.username}</div>`
-          ).join('');
-          resultsDiv.style.display = users.length ? 'block' : 'none';
-        });
+    replayBtn.addEventListener('click', () => {
+      socket.emit('request_replay', {room: myRoom});
+      replayBtn.textContent = 'waiting...';
+      replayBtn.disabled = true;
+    });
+
+    socket.on('replay_waiting', (data) => {
+      statusDiv.textContent = data.msg;
+    });
+
+    socket.on('replay_accepted', (data) => {
+      mySymbol = data.symbol;
+      currentTurn = 'X';
+      updateBoard(data.board);
+      updateScores(data.scores);
+      statusDiv.textContent = data.symbol === 'X' ? 'your turn' : 'opponent turn';
+      replayBtn.classList.add('hidden');
+    });
+
+    leaveBtn.addEventListener('click', () => {
+      socket.emit('leave_room', {room: myRoom});
+      myRoom = null;
+      mySymbol = null;
+      gameArea.classList.add('hidden');
+      lobby.classList.remove('hidden');
+    });
+
+    function joinGameRoom(room) {
+      lobby.classList.add('hidden');
+      gameArea.classList.remove('hidden');
     }
 
-    function startChat(userId) {
-      fetch('/api/start_chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId })
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (data.chat_id) {
-          openChat(data.chat_id);
-          document.getElementById('searchResults').style.display = 'none';
-          document.getElementById('searchUserInput').value = '';
-        }
+    function updateBoard(board) {
+      cells.forEach((cell, i) => {
+        cell.textContent = board[i];
+        cell.className = 'cell';
+        if (board[i] === 'X') cell.classList.add('x');
+        if (board[i] === 'O') cell.classList.add('o');
       });
     }
 
-    function loadChats() {
-      fetch('/api/chats')
-        .then(r => r.json())
-        .then(chats => {
-          const chatList = document.getElementById('chatList');
-          chatList.innerHTML = chats.map(c => `
-            <div class="chat-item ${activeChatId === c.id ? 'active' : ''}" onclick="openChat(${c.id})">
-              <div class="avatar">${c.other_username[0].toUpperCase()}</div>
-              <div class="chat-info">
-                <div class="chat-name">${c.other_username}</div>
-                <div class="last-message">${c.last_message || ''}</div>
-              </div>
-              <div class="chat-time">${c.last_time ? new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</div>
-            </div>
-          `).join('');
-        });
+    function updateScores(scores) {
+      myWinsSpan.textContent = scores.my_wins;
+      oppWinsSpan.textContent = scores.opponent_wins;
+      drawsSpan.textContent = scores.draws;
     }
-
-    function openChat(chatId) {
-      activeChatId = chatId;
-
-      const mainChat = document.getElementById('mainChat');
-      mainChat.classList.add('active');
-      document.getElementById('inputArea').style.display = 'flex';
-
-      const msgContainer = document.getElementById('messagesContainer');
-      msgContainer.innerHTML = '';
-
-      fetch(`/api/messages/${chatId}`)
-        .then(r => r.json())
-        .then(messages => {
-          messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
-        });
-
-      fetch('/api/chats').then(r => r.json()).then(chats => {
-        const chat = chats.find(c => c.id == chatId);
-        if (chat) document.getElementById('chatHeader').textContent = chat.other_username;
-      });
-
-      if (window.innerWidth < 700) {
-        document.getElementById('sidebar').classList.add('hidden');
-      }
-
-      socket.emit('join_chat_room', { chat_id: chatId });
-    }
-
-    function appendMessage(msg, isSent) {
-      const container = document.getElementById('messagesContainer');
-      if (!container) return;
-
-      const row = document.createElement('div');
-      row.className = `message-row ${isSent ? 'sent' : 'received'}`;
-      const bubble = document.createElement('div');
-      bubble.className = `bubble ${isSent ? 'sent' : 'received'}`;
-      bubble.textContent = msg.text;
-      const time = document.createElement('span');
-      time.className = 'message-time';
-      const timestamp = msg.created_at ? new Date(msg.created_at) : new Date();
-      time.textContent = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      bubble.appendChild(time);
-      row.appendChild(bubble);
-      container.appendChild(row);
-      container.scrollTop = container.scrollHeight;
-    }
-
-    function sendChatMessage() {
-        const input = document.getElementById('chatInput');
-        const text = input.value.trim();
-        if (!text || !activeChatId) return;
-
-        socket.emit('send_chat_message', { chat_id: activeChatId, text: text });
-        input.value = '';
-        autoResize(input);
-    }
-
-    function autoResize(textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
-    }
-
-    function backToChats() {
-      document.getElementById('mainChat').classList.remove('active');
-      document.getElementById('sidebar').classList.remove('hidden');
-      activeChatId = null;
-    }
-
-    loadChats();
-    window.addEventListener('load', () => {
-      document.getElementById('searchUserInput').focus();
-    });
   </script>
 </body>
 </html>
@@ -1901,7 +1904,6 @@ CHAT_HTML = r"""
     }
     (localStorage.getItem('theme') === 'light') ? body.classList.add('light-mode') : body.classList.remove('light-mode');
 
-    // ===== Socket.IO =====
     const socket = io({ transports: ['polling'] });
     let activeChatId = null;
     let currentUsername = null;

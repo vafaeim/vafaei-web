@@ -2,10 +2,14 @@ import os
 import json
 import string
 import random
+import secrets
 import requests
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template_string
 from flask_socketio import SocketIO, emit, join_room, leave_room
+import psycopg2
+import psycopg2.extras
+from flask import session, redirect, url_for
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config["SECRET_KEY"] = "amirrrr-secret-douz"
@@ -20,6 +24,73 @@ socketio = SocketIO(
         "http://localhost:5000",
     ],
 )
+
+
+def get_db():
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        return None
+
+    default_url = db_url.rsplit("/", 1)[0] + "/postgres"
+    target_db = db_url.rsplit("/", 1)[-1]
+
+    try:
+        conn_default = psycopg2.connect(default_url)
+        conn_default.autocommit = True
+        with conn_default.cursor() as cur:
+            cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (target_db,))
+            if not cur.fetchone():
+                cur.execute(f"CREATE DATABASE {target_db}")
+        conn_default.close()
+    except Exception as e:
+        pass
+
+    conn = psycopg2.connect(db_url)
+    with conn.cursor() as cur:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS rubika_chat_id VARCHAR UNIQUE"
+        )
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS otps (
+                id SERIAL PRIMARY KEY,
+                code VARCHAR(6) NOT NULL,
+                session_token VARCHAR(64) UNIQUE NOT NULL,
+                rubika_chat_id VARCHAR,
+                created_at_unix BIGINT NOT NULL,
+                expires_at_unix BIGINT NOT NULL,
+                used BOOLEAN DEFAULT FALSE
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS chats (
+                id SERIAL PRIMARY KEY,
+                user1_id INT REFERENCES users(id),
+                user2_id INT REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                chat_id INT REFERENCES chats(id),
+                sender_id INT REFERENCES users(id),
+                text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+        cur.execute("""
+            ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INT REFERENCES messages(id)
+        """)
+        conn.commit()
+    return conn
+
 
 WHISPER_CONFIG_FILE = "whisper_config.json"
 SECRET_KEY = "kavan2026"
@@ -202,9 +273,9 @@ MAIN_HTML = r"""
       <div class="rule"></div>
       <h1>amirrrr</h1>
       <div class="links">
+        <a href="/chat">Messenger</a>
         <a href="/whisper/">Anonymous Message</a>
-        <a href="/douz/">Tic-Tac-Toe (Dous)</a>
-        <a href="https://encrypt-vafaei.runflare.run/">Encrypt Text</a>
+        <a href="/douz/">Tic-Tac-Toe</a>
         <a href="https://github.com/vafaeim" target="_blank">GitHub</a>
         <a href="https://kaggle.com/vafaeii" target="_blank">Kaggle</a>
         <a href="https://t.me/amirvafaeim" target="_blank">Telegram</a>
@@ -542,7 +613,7 @@ WHISPER_HTML = r"""
       border: none;
       outline: none;
       color: var(--text-primary);
-      font-size: 0.95rem;
+      font-size: 16px;
       resize: none;
       max-height: 100px;
       padding: 0.4rem 0;
@@ -1116,6 +1187,710 @@ DOUZ_HTML = r"""
       <button id="replayBtn" class="hidden">replay</button>
     </div>
   </div>
+  <script src="/static/socket.io.min.js"></script>
+  <script>
+    const body = document.body;
+    function toggleTheme() {
+      body.classList.toggle('light-mode');
+      localStorage.setItem('theme', body.classList.contains('light-mode') ? 'light' : 'dark');
+    }
+    (localStorage.getItem('theme') === 'light') ? body.classList.add('light-mode') : body.classList.remove('light-mode');
+
+    const socket = io({ transports: ['polling'] });
+    let currentUsername = null;
+    let activeChatId = null;
+
+    fetch('/api/whoami').then(r => r.json()).then(d => { currentUsername = d.username; }).catch(() => {});
+
+    socket.on('connect', () => {
+      socket.emit('join_chat');
+    });
+
+    socket.on('new_message', (msg) => {
+      const chatId = Number(msg.chat_id);
+      if (activeChatId === chatId) {
+        appendMessage(msg, msg.sender_username === currentUsername);
+      }
+      loadChats();
+    });
+
+    socket.on('new_message_notification', () => {
+      loadChats();
+    });
+
+    function searchUsers() {
+      const q = document.getElementById('searchUserInput').value.trim();
+      const resultsDiv = document.getElementById('searchResults');
+      if (!q) { resultsDiv.style.display = 'none'; return; }
+      fetch(`/api/search_users?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(users => {
+          resultsDiv.innerHTML = users.map(u =>
+            `<div class="search-result-item" onclick="startChat('${u.id}')">${u.username}</div>`
+          ).join('');
+          resultsDiv.style.display = users.length ? 'block' : 'none';
+        });
+    }
+
+    function startChat(userId) {
+      fetch('/api/start_chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.chat_id) {
+          openChat(data.chat_id);
+          document.getElementById('searchResults').style.display = 'none';
+          document.getElementById('searchUserInput').value = '';
+        }
+      });
+    }
+
+    function loadChats() {
+      fetch('/api/chats')
+        .then(r => r.json())
+        .then(chats => {
+          const chatList = document.getElementById('chatList');
+          chatList.innerHTML = chats.map(c => `
+            <div class="chat-item ${activeChatId === c.id ? 'active' : ''}" onclick="openChat(${c.id})">
+              <div class="avatar">${c.other_username[0].toUpperCase()}</div>
+              <div class="chat-info">
+                <div class="chat-name">${c.other_username}</div>
+                <div class="last-message">${c.last_message || ''}</div>
+              </div>
+              <div class="chat-time">${c.last_time ? new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</div>
+            </div>
+          `).join('');
+        });
+    }
+
+    function openChat(chatId) {
+      activeChatId = chatId;
+
+      const mainChat = document.getElementById('mainChat');
+      mainChat.classList.add('active');
+      document.getElementById('inputArea').style.display = 'flex';
+
+      const msgContainer = document.getElementById('messagesContainer');
+      msgContainer.innerHTML = '';
+
+      fetch(`/api/messages/${chatId}`)
+        .then(r => r.json())
+        .then(messages => {
+          messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
+        });
+
+      fetch('/api/chats').then(r => r.json()).then(chats => {
+        const chat = chats.find(c => c.id == chatId);
+        if (chat) document.getElementById('chatHeader').textContent = chat.other_username;
+      });
+
+      if (window.innerWidth < 700) {
+        document.getElementById('sidebar').classList.add('hidden');
+      }
+
+      socket.emit('join_chat_room', { chat_id: chatId });
+    }
+
+    function appendMessage(msg, isSent) {
+      const container = document.getElementById('messagesContainer');
+      if (!container) return;
+
+      const row = document.createElement('div');
+      row.className = `message-row ${isSent ? 'sent' : 'received'}`;
+      const bubble = document.createElement('div');
+      bubble.className = `bubble ${isSent ? 'sent' : 'received'}`;
+      bubble.textContent = msg.text;
+      const time = document.createElement('span');
+      time.className = 'message-time';
+      const timestamp = msg.created_at ? new Date(msg.created_at) : new Date();
+      time.textContent = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      bubble.appendChild(time);
+      row.appendChild(bubble);
+      container.appendChild(row);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text || !activeChatId) return;
+
+        socket.emit('send_chat_message', { chat_id: activeChatId, text: text });
+        input.value = '';
+        autoResize(input);
+    }
+
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
+    }
+
+    function backToChats() {
+      document.getElementById('mainChat').classList.remove('active');
+      document.getElementById('sidebar').classList.remove('hidden');
+      activeChatId = null;
+    }
+
+    loadChats();
+    window.addEventListener('load', () => {
+      document.getElementById('searchUserInput').focus();
+    });
+  </script>
+</body>
+</html>
+"""
+
+LOGIN_HTML = r"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Login</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #17212b;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+    .card {
+      background: #0e1621;
+      padding: 2rem;
+      border-radius: 1.5rem;
+      text-align: center;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    h2 { margin-bottom: 1rem; font-size: 1.5rem; }
+    .code {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: 0.5rem;
+      background: #212e3c;
+      padding: 0.8rem;
+      border-radius: 0.8rem;
+      margin: 1.5rem 0;
+      color: #2b9cff;
+      user-select: all;
+    }
+    .info {
+      font-size: 0.9rem;
+      color: #aab2bb;
+      margin: 1rem 0;
+    }
+    .timer {
+      font-size: 0.9rem;
+      color: #ffb300;
+      margin: 0.8rem 0;
+    }
+    .btn {
+      background: #2b5278;
+      color: #fff;
+      border: none;
+      padding: 0.8rem 2rem;
+      border-radius: 0.8rem;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 1rem;
+    }
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .btn:hover:not(:disabled) { background: #3a6a99; }
+    .error { color: #ff4d4d; margin-top: 1rem; font-size: 0.9rem; }
+    .success { color: #34d399; margin-top: 1rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>🔐 ورود با ربات</h2>
+    <p class="info">کد زیر را به ربات روبیکا ارسال کن:</p>
+    <div class="code" id="otpCode">{{ code }}</div>
+    <p class="timer" id="timer">زمان باقی‌مانده: ۹۰ ثانیه</p>
+    <button class="btn" id="verifyBtn" onclick="checkVerification()">بررسی تأیید</button>
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const code = "{{ code }}";
+    const otpToken = "{{ otp_token }}";
+    let timeLeft = 90;
+    let expired = false;
+    const timerEl = document.getElementById('timer');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const statusEl = document.getElementById('status');
+
+    function updateTimer() {
+      if (expired) return;
+      timeLeft--;
+      if (timeLeft <= 0) {
+        expired = true;
+        timerEl.textContent = '⏰ کد منقضی شد. صفحه را رفرش کن.';
+        verifyBtn.disabled = true;
+        return;
+      }
+      timerEl.textContent = `زمان باقی‌مانده: ${timeLeft} ثانیه`;
+    }
+    setInterval(updateTimer, 1000);
+
+    async function checkVerification() {
+      if (expired) {
+        statusEl.innerHTML = '<div class="error">کد منقضی شده است.</div>';
+        return;
+      }
+      verifyBtn.disabled = true;
+      statusEl.innerHTML = '<div class="info">⏳ در حال بررسی...</div>';
+
+      try {
+        const resp = await fetch(`/api/verify_otp?code=${encodeURIComponent(code)}&otp_token=${encodeURIComponent(otpToken)}`);
+        const data = await resp.json();
+        if (data.success) {
+          statusEl.innerHTML = '<div class="success">✅ تأیید شد! در حال انتقال...</div>';
+          setTimeout(() => { window.location.href = '/chat'; }, 1000);
+        } else {
+          statusEl.innerHTML = `<div class="error">❌ ${data.error || 'هنوز تأیید نشده'}</div>`;
+          verifyBtn.disabled = false;
+        }
+      } catch (err) {
+        statusEl.innerHTML = '<div class="error">⚠️ خطای شبکه</div>';
+        verifyBtn.disabled = false;
+      }
+    }
+
+    setInterval(() => {
+      if (!expired && !verifyBtn.disabled) checkVerification();
+    }, 5000);
+  </script>
+</body>
+</html>
+"""
+
+CHAT_HTML = r"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Chat</title>
+  <link href="/static/assets/styles/Vazirmatn-font-face.css" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #17212b;
+      --sidebar-bg: #17212b;
+      --chat-bg: #0e1621;
+      --text-primary: #fff;
+      --text-secondary: #aab2bb;
+      --border-color: #2a3a4a;
+      --hover-bg: #212e3c;
+      --bubble-sent: #2b5278;
+      --bubble-received: #182533;
+      --input-bg: #212e3c;
+      --input-border: #2b3a4a;
+      --btn-color: #8ea2b8;
+      --btn-hover-bg: #2b5278;
+      --status-bar-bg: #212e3c;
+      --shadow: 0 2px 10px rgba(0,0,0,0.3);
+      --transition: 0.3s ease;
+    }
+    body.light-mode {
+      --bg: #f5f5f5;
+      --sidebar-bg: #ffffff;
+      --chat-bg: #f8f9fa;
+      --text-primary: #000;
+      --text-secondary: #707579;
+      --border-color: #d3d9de;
+      --hover-bg: #e8ecef;
+      --bubble-sent: #e3ffd8;
+      --bubble-received: #ffffff;
+      --input-bg: #fff;
+      --input-border: #d3d9de;
+      --btn-color: #707579;
+      --btn-hover-bg: #e8ecef;
+      --status-bar-bg: #ffffff;
+      --shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: 'Vazirmatn', Tahoma, sans-serif;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      transition: background var(--transition);
+    }
+    .app-container {
+      width: 100%;
+      max-width: 1000px;
+      height: 100%;
+      display: flex;
+      background: var(--sidebar-bg);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: background var(--transition);
+      border-radius: 1.5rem;
+    }
+    .sidebar {
+      width: 320px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      transition: all var(--transition);
+    }
+    .sidebar-header {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sidebar-header .title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .search-box {
+      padding: 0.6rem 1rem;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 0.6rem 1rem;
+      border-radius: 1.5rem;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      color: var(--text-primary);
+      outline: none;
+      font-size: 0.9rem;
+      transition: background var(--transition);
+      font-family: inherit;
+    }
+    .search-results {
+      max-height: 200px;
+      overflow-y: auto;
+      border-bottom: 1px solid var(--border-color);
+      display: none;
+    }
+    .search-result-item {
+      padding: 0.7rem 1rem;
+      cursor: pointer;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .search-result-item:hover {
+      background: var(--hover-bg);
+    }
+    .chat-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .chat-item {
+      display: flex;
+      align-items: center;
+      padding: 0.8rem 1rem;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border-color);
+      transition: background 0.2s;
+    }
+    .chat-item:hover, .chat-item.active {
+      background: var(--hover-bg);
+    }
+    .chat-item .avatar {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: var(--bubble-sent);
+      display: flex; align-items: center; justify-content: center;
+      margin-right: 0.8rem;
+      color: #fff;
+      font-weight: 600;
+      font-size: 1.2rem;
+    }
+    .chat-item .chat-info {
+      flex: 1;
+    }
+    .chat-item .chat-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .chat-item .last-message {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chat-item .chat-time {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+    }
+
+    .main-chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--chat-bg);
+      transition: background var(--transition);
+      position: relative;
+    }
+    .chat-header {
+      padding: 0.8rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--status-bar-bg);
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    .back-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--btn-color);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.2rem;
+    }
+    .back-btn:hover { color: #2b9cff; }
+
+    .messages-container {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .message-row {
+      display: flex;
+      position: relative;
+    }
+    .message-row.sent {
+      justify-content: flex-end;
+    }
+    .message-row.received {
+      justify-content: flex-start;
+    }
+    .bubble {
+      max-width: 70%;
+      padding: 0.6rem 0.9rem;
+      border-radius: 1.2rem;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      position: relative;
+      word-wrap: break-word;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      cursor: pointer;
+      transition: background 0.15s;
+      direction: auto;
+      text-align: start;
+    }
+    .bubble:active {
+      background: rgba(255,255,255,0.1);
+    }
+    .bubble.sent {
+      background: var(--bubble-sent);
+      border-bottom-right-radius: 0.3rem;
+    }
+    .bubble.received {
+      background: var(--bubble-received);
+      border-bottom-left-radius: 0.3rem;
+    }
+    .bubble.emoji-only {
+      background: transparent !important;
+      box-shadow: none;
+      font-size: 2.5rem;
+      padding: 0.2rem;
+      line-height: 1.2;
+    }
+    .bubble .message-time {
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      float: right;
+      margin-left: 0.5rem;
+      margin-top: 0.2rem;
+      direction: ltr;
+      text-align: right;
+    }
+    .no-chat-message {
+      color: var(--text-secondary);
+      text-align: center;
+      margin-top: 3rem;
+      font-size: 1rem;
+    }
+
+    .reply-preview {
+      background: var(--input-bg);
+      border-top: 1px solid var(--border-color);
+      padding: 0.5rem 1rem;
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    .reply-preview.active {
+      display: flex;
+    }
+    .reply-preview .reply-text {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 60%;
+    }
+    .reply-preview .cancel-reply {
+      color: #ff4d4d;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .reply-quote {
+      border-left: 3px solid #2b9cff;
+      padding-left: 0.6rem;
+      margin-bottom: 0.3rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      direction: auto;
+      text-align: start;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .reply-quote .reply-sender {
+      font-weight: 600;
+      color: #2b9cff;
+      margin-bottom: 0.1rem;
+    }
+
+    .input-area {
+      padding: 0.8rem 1rem;
+      border-top: 1px solid var(--border-color);
+      background: var(--input-bg);
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    .input-area textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 16px;
+      resize: none;
+      padding: 0.4rem 0;
+      font-family: inherit;
+      max-height: 100px;
+      direction: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+    .input-area .send-chat-btn {
+      background: none;
+      border: none;
+      color: #2b9cff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.3rem;
+    }
+    .input-area .send-chat-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .theme-toggle {
+      background: none;
+      border: none;
+      color: var(--btn-color);
+      font-size: 1.2rem;
+      cursor: pointer;
+      width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+    }
+    .theme-toggle:hover { background: var(--hover-bg); }
+
+    @media (max-width: 700px) {
+      .app-container {
+        border-radius: 0;
+      }
+      .sidebar {
+        width: 100%;
+      }
+      .main-chat {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 10;
+        transform: translateX(100%);
+        display: flex;
+      }
+      .main-chat.active {
+        transform: translateX(0);
+      }
+      .back-btn {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="title">Chats</span>
+        <button class="theme-toggle" onclick="toggleTheme()">◑</button>
+      </div>
+      <div class="search-box">
+        <input type="text" id="searchUserInput" placeholder="Search user..." oninput="searchUsers()">
+      </div>
+      <div class="search-results" id="searchResults"></div>
+      <div class="chat-list" id="chatList"></div>
+    </div>
+
+    <!-- MAIN CHAT -->
+    <div class="main-chat" id="mainChat">
+      <div class="chat-header">
+        <button class="back-btn" onclick="backToChats()">←</button>
+        <span id="chatHeader"></span>
+      </div>
+      <div class="reply-preview" id="replyPreview">
+        <span class="reply-text" id="replyText"></span>
+        <span class="cancel-reply" onclick="cancelReply()">✕</span>
+      </div>
+      <div class="messages-container" id="messagesContainer">
+        <div class="no-chat-message">Select a chat to start messaging</div>
+      </div>
+      <div class="input-area" id="inputArea" style="display:none;">
+        <textarea id="chatInput" placeholder="Message..." dir="auto" rows="1" oninput="autoResize(this)"></textarea>
+        <button class="send-chat-btn" id="sendChatBtn" onclick="sendChatMessage()">➤</button>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/socket.io.min.js"></script>
   <script>
@@ -1124,148 +1899,285 @@ DOUZ_HTML = r"""
       body.classList.toggle('light-mode');
       localStorage.setItem('theme', body.classList.contains('light-mode') ? 'light' : 'dark');
     }
-    if (localStorage.getItem('theme') === 'light') body.classList.add('light-mode');
+    (localStorage.getItem('theme') === 'light') ? body.classList.add('light-mode') : body.classList.remove('light-mode');
 
-    const socket = io();
-    let myRoom = null;
-    let mySymbol = null;
-    let currentTurn = null;
+    // ===== Socket.IO =====
+    const socket = io({ transports: ['polling'] });
+    let activeChatId = null;
+    let currentUsername = null;
+    let replyToMessage = null;
 
-    const lobby = document.getElementById('lobby');
-    const gameArea = document.getElementById('gameArea');
-    const statusDiv = document.getElementById('status');
-    const roomCodeSpan = document.getElementById('roomCode');
-    const cells = document.querySelectorAll('.cell');
-    const replayBtn = document.getElementById('replayBtn');
-    const leaveBtn = document.getElementById('leaveBtn');
-    const myWinsSpan = document.getElementById('myWins');
-    const oppWinsSpan = document.getElementById('oppWins');
-    const drawsSpan = document.getElementById('draws');
-
-    document.getElementById('createRoomBtn').addEventListener('click', () => {
-      socket.emit('create_room');
+    socket.on('connect', () => {
+      socket.emit('join_chat');
     });
 
-    document.getElementById('joinRoomBtn').addEventListener('click', () => {
-      const code = document.getElementById('roomInput').value.trim().toUpperCase();
-      if (code) socket.emit('join_room', {room: code});
-    });
-
-    cells.forEach(cell => {
-      cell.addEventListener('click', () => {
-        if (!mySymbol || currentTurn !== mySymbol) return;
-        const idx = cell.dataset.idx;
-        socket.emit('make_move', {room: myRoom, index: idx});
-      });
-    });
-
-    socket.on('room_created', (data) => {
-      myRoom = data.room;
-      joinGameRoom(data.room);
-      roomCodeSpan.textContent = data.room;
-      statusDiv.textContent = 'waiting for opponent...';
-      updateScores({my_wins: 0, opponent_wins: 0, draws: 0});
-    });
-
-    socket.on('room_joined', (data) => {
-      myRoom = data.room;
-      joinGameRoom(data.room);
-      roomCodeSpan.textContent = data.room;
-    });
-
-    socket.on('game_start', (data) => {
-      mySymbol = data.symbol;
-      currentTurn = 'X';
-      statusDiv.textContent = data.symbol === 'X' ? 'your turn' : 'opponent turn';
-      updateBoard(data.board);
-      updateScores(data.scores);
-      replayBtn.classList.add('hidden');
-    });
-
-    socket.on('board_update', (data) => {
-      updateBoard(data.board);
-      currentTurn = data.turn;
-      statusDiv.textContent = data.turn === mySymbol ? 'your turn' : 'opponent turn';
-    });
-
-    socket.on('game_over', (data) => {
-      updateBoard(data.board);
-      if (data.winner) {
-        const winText = data.winner === mySymbol ? 'you won!' : 'you lost';
-        statusDiv.textContent = winText;
-      } else {
-        statusDiv.textContent = 'draw';
+    socket.on('new_message', (msg) => {
+      const chatId = Number(msg.chat_id);
+      if (activeChatId === chatId) {
+        appendMessage(msg, msg.sender_username === currentUsername);
       }
-      currentTurn = null;
-      updateScores(data.scores);
-      replayBtn.classList.remove('hidden');
-      replayBtn.textContent = 'replay';
-      replayBtn.disabled = false;
+      loadChats();
     });
 
-    socket.on('opponent_left', () => {
-      statusDiv.textContent = 'opponent left the room';
-      currentTurn = null;
-      replayBtn.classList.add('hidden');
+    socket.on('new_message_notification', () => {
+      loadChats();
     });
 
-    replayBtn.addEventListener('click', () => {
-      socket.emit('request_replay', {room: myRoom});
-      replayBtn.textContent = 'waiting...';
-      replayBtn.disabled = true;
-    });
+    fetch('/api/whoami').then(r => r.json()).then(d => { currentUsername = d.username; }).catch(() => {});
 
-    socket.on('replay_waiting', (data) => {
-      statusDiv.textContent = data.msg;
-    });
-
-    socket.on('replay_accepted', (data) => {
-      mySymbol = data.symbol;
-      currentTurn = 'X';
-      updateBoard(data.board);
-      updateScores(data.scores);
-      statusDiv.textContent = data.symbol === 'X' ? 'your turn' : 'opponent turn';
-      replayBtn.classList.add('hidden');
-    });
-
-    leaveBtn.addEventListener('click', () => {
-      socket.emit('leave_room', {room: myRoom});
-      myRoom = null;
-      mySymbol = null;
-      gameArea.classList.add('hidden');
-      lobby.classList.remove('hidden');
-    });
-
-    function joinGameRoom(room) {
-      lobby.classList.add('hidden');
-      gameArea.classList.remove('hidden');
+    function isEmojiOnly(text) {
+      if (!text) return false;
+      const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
+      const graphemes = [...segmenter.segment(text)].map(s => s.segment);
+      const emojiRegex = /\p{Emoji}/u;
+      const allEmoji = graphemes.every(g => emojiRegex.test(g));
+      return allEmoji && graphemes.length >= 1 && graphemes.length <= 3;
     }
 
-    function updateBoard(board) {
-      cells.forEach((cell, i) => {
-        cell.textContent = board[i];
-        cell.className = 'cell';
-        if (board[i] === 'X') cell.classList.add('x');
-        if (board[i] === 'O') cell.classList.add('o');
+    function searchUsers() {
+      const q = document.getElementById('searchUserInput').value.trim();
+      const resultsDiv = document.getElementById('searchResults');
+      if (!q) { resultsDiv.style.display = 'none'; return; }
+      fetch(`/api/search_users?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(users => {
+          resultsDiv.innerHTML = users.map(u =>
+            `<div class="search-result-item" onclick="startChat('${u.id}')">${u.username}</div>`
+          ).join('');
+          resultsDiv.style.display = users.length ? 'block' : 'none';
+        });
+    }
+
+    function startChat(userId) {
+      fetch('/api/start_chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.chat_id) {
+          openChat(data.chat_id);
+          document.getElementById('searchResults').style.display = 'none';
+          document.getElementById('searchUserInput').value = '';
+        }
       });
     }
 
-    function updateScores(scores) {
-      myWinsSpan.textContent = scores.my_wins;
-      oppWinsSpan.textContent = scores.opponent_wins;
-      drawsSpan.textContent = scores.draws;
+    function loadChats() {
+      fetch('/api/chats')
+        .then(r => r.json())
+        .then(chats => {
+          const chatList = document.getElementById('chatList');
+          chatList.innerHTML = chats.map(c => `
+            <div class="chat-item ${activeChatId === c.id ? 'active' : ''}" onclick="openChat(${c.id})">
+              <div class="avatar">${c.other_username[0].toUpperCase()}</div>
+              <div class="chat-info">
+                <div class="chat-name">${c.other_username}</div>
+                <div class="last-message">${c.last_message || ''}</div>
+              </div>
+              <div class="chat-time">${c.last_time ? new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</div>
+            </div>
+          `).join('');
+        });
     }
+
+    function openChat(chatId) {
+      activeChatId = chatId;
+      socket.emit('join_chat_room', { chat_id: chatId });
+      cancelReply();
+
+      const mainChat = document.getElementById('mainChat');
+      mainChat.classList.add('active');
+      document.getElementById('inputArea').style.display = 'flex';
+      const msgContainer = document.getElementById('messagesContainer');
+      msgContainer.innerHTML = '';
+
+      fetch(`/api/messages/${chatId}`)
+        .then(r => r.json())
+        .then(messages => {
+          messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
+        });
+
+      fetch('/api/chats').then(r => r.json()).then(chats => {
+        const chat = chats.find(c => c.id == chatId);
+        if (chat) document.getElementById('chatHeader').textContent = chat.other_username;
+      });
+
+      if (window.innerWidth < 700) {
+        document.getElementById('sidebar').classList.add('hidden');
+      }
+    }
+
+    function appendMessage(msg, isSent) {
+      const container = document.getElementById('messagesContainer');
+      const row = document.createElement('div');
+      row.className = `message-row ${isSent ? 'sent' : 'received'}`;
+      const bubble = document.createElement('div');
+      bubble.className = `bubble ${isSent ? 'sent' : 'received'}`;
+      bubble.setAttribute('dir', 'auto');
+
+      if (isEmojiOnly(msg.text)) {
+        bubble.classList.add('emoji-only');
+        bubble.textContent = msg.text;
+        row.appendChild(bubble);
+        container.appendChild(row);
+        container.scrollTop = container.scrollHeight;
+        return;
+      }
+
+      if (msg.reply_to) {
+        const quoteDiv = document.createElement('div');
+        quoteDiv.className = 'reply-quote';
+        quoteDiv.setAttribute('dir', 'auto');
+        quoteDiv.innerHTML = `
+          <div class="reply-sender">${msg.reply_to.sender_username}</div>
+          <div>${msg.reply_to.text.length > 60 ? msg.reply_to.text.substring(0, 60) + '...' : msg.reply_to.text}</div>
+        `;
+        bubble.appendChild(quoteDiv);
+      }
+
+      const textNode = document.createTextNode(msg.text || '');
+      bubble.appendChild(textNode);
+
+      const time = document.createElement('span');
+      time.className = 'message-time';
+      time.textContent = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      bubble.appendChild(time);
+
+      bubble.addEventListener('click', () => {
+        replyToMessage = msg;
+        const previewText = msg.text.length > 40 ? msg.text.substring(0, 40) + '...' : msg.text;
+        document.getElementById('replyText').textContent = '↩ ' + previewText;
+        document.getElementById('replyPreview').classList.add('active');
+        document.getElementById('chatInput').focus();
+      });
+
+      row.appendChild(bubble);
+      container.appendChild(row);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function cancelReply() {
+      replyToMessage = null;
+      document.getElementById('replyPreview').classList.remove('active');
+    }
+
+    function sendChatMessage() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text && !replyToMessage) return;
+      if (!activeChatId) return;
+
+      const payload = { chat_id: activeChatId, text: text };
+      if (replyToMessage) {
+        payload.reply_to_message_id = replyToMessage.id;
+        cancelReply();
+      }
+
+      socket.emit('send_chat_message', payload);
+      input.value = '';
+      autoResize(input);
+    }
+
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
+    }
+
+    function backToChats() {
+      document.getElementById('mainChat').classList.remove('active');
+      document.getElementById('sidebar').classList.remove('hidden');
+      activeChatId = null;
+      cancelReply();
+    }
+
+    loadChats();
+    window.addEventListener('load', () => {
+      document.getElementById('searchUserInput').focus();
+    });
   </script>
 </body>
 </html>
 """
-
 
 dous_rooms = {}
 
 
 def generate_room_code():
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+
+@socketio.on("send_chat_message")
+def handle_chat_message(data):
+    sender_id = session.get("user_id")
+    if not sender_id:
+        return
+    chat_id = data.get("chat_id")
+    text = data.get("text", "").strip()
+    reply_to = data.get("reply_to_message_id")
+    if not text and not reply_to:
+        return
+    if not chat_id:
+        return
+
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """INSERT INTO messages (chat_id, sender_id, text, reply_to_id)
+                   VALUES (%s, %s, %s, %s) RETURNING id, created_at""",
+                (chat_id, sender_id, text, reply_to),
+            )
+            msg = cur.fetchone()
+            conn.commit()
+
+            msg["text"] = text or ""
+            msg["chat_id"] = chat_id
+            msg["created_at"] = msg["created_at"].isoformat()
+
+            cur.execute("SELECT username FROM users WHERE id = %s", (sender_id,))
+            user = cur.fetchone()
+            msg["sender_username"] = user["username"]
+
+            if reply_to:
+                cur.execute(
+                    """
+                    SELECT m.text, u.username AS sender_username
+                    FROM messages m
+                    JOIN users u ON m.sender_id = u.id
+                    WHERE m.id = %s
+                """,
+                    (reply_to,),
+                )
+                reply_msg = cur.fetchone()
+                if reply_msg:
+                    msg["reply_to"] = {
+                        "text": reply_msg["text"],
+                        "sender_username": reply_msg["sender_username"],
+                    }
+
+    emit("new_message", msg, room=f"chat_{chat_id}")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT user1_id, user2_id FROM chats WHERE id = %s", (chat_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                other = row[0] if row[0] != sender_id else row[1]
+                other_sid = online_users.get(other)
+                if other_sid:
+                    emit(
+                        "new_message_notification",
+                        {
+                            "chat_id": chat_id,
+                            "sender_username": user["username"],
+                            "text": (text or "📎 replied")[:30]
+                            + ("..." if len(text or "") > 30 else ""),
+                        },
+                        room=f"user_{other}",
+                    )
 
 
 @socketio.on("create_room")
@@ -1456,6 +2368,54 @@ def check_winner(board):
     return None
 
 
+online_users = {}
+
+
+@socketio.on("join_chat")
+def handle_join_chat(data=None):
+    user_id = session.get("user_id")
+    if not user_id:
+        return
+    online_users[user_id] = request.sid
+    join_room(f"user_{user_id}")
+
+
+@socketio.on("open_chat")
+def handle_open_chat(data):
+    chat_id = data.get("chat_id")
+    if chat_id:
+        join_room(f"chat_{chat_id}")
+
+
+@socketio.on("join_chat_room")
+def handle_join_chat_room(data):
+    chat_id = data.get("chat_id")
+    if chat_id:
+        join_room(f"chat_{chat_id}")
+
+
+def rubika_get_updates(token, limit=50):
+    url = f"https://botapi.rubika.ir/v3/{token}/getUpdates"
+    try:
+        resp = requests.post(url, json={"limit": str(limit)}, timeout=10)
+        if resp.ok:
+            return resp.json()
+    except:
+        pass
+    return None
+
+
+def rubika_get_chat(token, chat_id):
+    url = f"https://botapi.rubika.ir/v3/{token}/getChat"
+    try:
+        resp = requests.post(url, json={"chat_id": chat_id}, timeout=10)
+        if resp.ok:
+            return resp.json()
+    except:
+        pass
+    return None
+
+
 @app.route("/")
 def index():
     return render_template_string(MAIN_HTML)
@@ -1607,6 +2567,240 @@ def whisper_send_file():
     except Exception as e:
         app.logger.error(f"Unexpected error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/chat")
+def chat_page():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    return render_template_string(CHAT_HTML)
+
+
+@app.route("/api/search_users")
+def search_users():
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify([])
+    with get_db() as conn:
+        if conn is None:
+            return jsonify({"error": "Database not available"}), 503
+
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT id, username FROM users WHERE username ILIKE %s LIMIT 10",
+                (f"%{query}%",),
+            )
+            users = cur.fetchall()
+    return jsonify(users)
+
+
+@app.route("/api/start_chat", methods=["POST"])
+def start_chat():
+    data = request.get_json()
+    other_user_id = data.get("user_id")
+    if not other_user_id:
+        return jsonify({"error": "user_id required"}), 400
+    my_id = session.get("user_id")
+    if not my_id:
+        return jsonify({"error": "Not logged in"}), 401
+    with get_db() as conn:
+        if conn is None:
+            return jsonify({"error": "Database not available"}), 503
+
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id FROM chats
+                WHERE (user1_id = %s AND user2_id = %s) OR (user1_id = %s AND user2_id = %s)
+            """,
+                (my_id, other_user_id, other_user_id, my_id),
+            )
+            chat = cur.fetchone()
+            if not chat:
+                cur.execute(
+                    "INSERT INTO chats (user1_id, user2_id) VALUES (%s, %s) RETURNING id",
+                    (my_id, other_user_id),
+                )
+                chat = cur.fetchone()
+                conn.commit()
+    return jsonify({"chat_id": chat["id"]})
+
+
+@app.route("/api/chats")
+def get_chats():
+    my_id = session.get("user_id")
+    if not my_id:
+        return jsonify([])
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT c.id,
+                       CASE WHEN c.user1_id = %s THEN u2.username ELSE u1.username END AS other_username,
+                       (SELECT text FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+                       (SELECT created_at FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_time
+                FROM chats c
+                JOIN users u1 ON c.user1_id = u1.id
+                JOIN users u2 ON c.user2_id = u2.id
+                WHERE c.user1_id = %s OR c.user2_id = %s
+                ORDER BY last_time DESC NULLS LAST
+            """,
+                (my_id, my_id, my_id),
+            )
+            chats = cur.fetchall()
+            for c in chats:
+                if c.get("last_time"):
+                    c["last_time"] = c["last_time"].isoformat()
+    return jsonify(chats)
+
+
+@app.route("/api/messages/<int:chat_id>")
+def get_messages(chat_id):
+    my_id = session.get("user_id")
+    if not my_id:
+        return jsonify([])
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT user1_id, user2_id FROM chats WHERE id = %s", (chat_id,)
+            )
+            row = cur.fetchone()
+            if not row or (row[0] != my_id and row[1] != my_id):
+                return jsonify([])
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT m.id, m.text, m.created_at, u.username AS sender_username
+                FROM messages m
+                JOIN users u ON m.sender_id = u.id
+                WHERE m.chat_id = %s
+                ORDER BY m.created_at ASC
+            """,
+                (chat_id,),
+            )
+            messages = cur.fetchall()
+            for m in messages:
+                m["created_at"] = m["created_at"].isoformat()
+    return jsonify(messages)
+
+
+@app.route("/api/whoami")
+def whoami():
+    return jsonify({"username": session.get("username", "unknown")})
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if "user_id" in session:
+        return redirect(url_for("chat_page"))
+
+    code = str(random.randint(100000, 999999))
+    otp_token = secrets.token_hex(32)
+    now_unix = int(datetime.utcnow().timestamp())
+    expires_unix = now_unix + 90
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO otps (code, session_token, created_at_unix, expires_at_unix) VALUES (%s, %s, %s, %s)",
+                (code, otp_token, now_unix, expires_unix),
+            )
+        conn.commit()
+
+    return render_template_string(LOGIN_HTML, code=code, otp_token=otp_token)
+
+
+@app.route("/api/verify_otp")
+def verify_otp():
+    code = request.args.get("code", "").strip()
+    otp_token = request.args.get("otp_token", "").strip()
+    if not code or not otp_token:
+        return jsonify({"success": False, "error": "پارامترها ناقص هستند."})
+
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM otps WHERE session_token = %s AND used = FALSE AND expires_at_unix > %s",
+                (otp_token, int(datetime.utcnow().timestamp())),
+            )
+            otp_record = cur.fetchone()
+            if not otp_record:
+                return jsonify({"success": False, "error": "کد منقضی یا نامعتبر."})
+
+            config = load_whisper_config()
+            token = config.get("token")
+            if not token:
+                return jsonify({"success": False, "error": "ربات تنظیم نشده است."})
+
+            updates_data = rubika_get_updates(token, limit=100)
+            if not updates_data or updates_data.get("status") != "OK":
+                app.logger.error(f"getUpdates failed: {updates_data}")
+                return jsonify(
+                    {"success": False, "error": "خطا در دریافت پیام‌های ربات."}
+                )
+
+            updates = updates_data.get("data", {}).get("updates", [])
+            app.logger.info(
+                f"Searching for code {repr(code)} among {len(updates)} updates"
+            )
+
+            verified_chat_id = None
+            for update in updates:
+                if update.get("type") == "NewMessage":
+                    new_msg = update.get("new_message", {})
+                    if new_msg.get("text") == code and new_msg.get("time"):
+                        msg_time = int(new_msg["time"])
+                        otp_created = int(otp_record["created_at_unix"])
+                        if msg_time >= otp_created:
+                            verified_chat_id = update.get("chat_id")
+                            app.logger.info(f"Match found! chat_id={verified_chat_id}")
+                            break
+
+            if not verified_chat_id:
+                app.logger.warning(f"Code {code} not found in updates")
+                return jsonify(
+                    {"success": False, "error": "هنوز پیامی با این کد دریافت نشده."}
+                )
+
+            chat_data = rubika_get_chat(token, verified_chat_id)
+            if not chat_data or chat_data.get("status") != "OK":
+                app.logger.error(f"getChat failed: {chat_data}")
+                return jsonify(
+                    {"success": False, "error": "خطا در دریافت اطلاعات کاربر."}
+                )
+
+            user_info = chat_data["data"]["chat"]
+            rubika_username = user_info.get("username", "")
+            rubika_first_name = user_info.get("first_name", rubika_username or "کاربر")
+            display_name = rubika_first_name or rubika_username or "کاربر"
+
+            cur.execute(
+                "SELECT id FROM users WHERE rubika_chat_id = %s", (verified_chat_id,)
+            )
+            existing_user = cur.fetchone()
+            if existing_user:
+                user_id = existing_user["id"]
+                cur.execute(
+                    "UPDATE users SET username = %s WHERE id = %s",
+                    (display_name, user_id),
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO users (username, rubika_chat_id) VALUES (%s, %s) RETURNING id",
+                    (display_name, verified_chat_id),
+                )
+                user = cur.fetchone()
+                user_id = user["id"]
+
+            cur.execute(
+                "UPDATE otps SET used = TRUE, rubika_chat_id = %s WHERE id = %s",
+                (verified_chat_id, otp_record["id"]),
+            )
+            conn.commit()
+
+    session["user_id"] = user_id
+    session["username"] = display_name
+    return jsonify({"success": True})
 
 
 # if __name__ == "__main__":

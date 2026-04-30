@@ -405,117 +405,247 @@ WHISPER_HTML = r"""
   <title>whisper</title>
   <style>
     :root {
-      --bg: #000;
-      --card-bg: rgba(10, 10, 10, 0.85);
-      --text: #e8e8e8;
-      --text-secondary: #999;
-      --border: rgba(255, 255, 255, 0.08);
-      --link-hover-bg: rgba(255, 255, 255, 0.03);
-      --link-hover-border: rgba(255, 255, 255, 0.2);
-      --rule-color: rgba(255, 255, 255, 0.3);
-      --footer-color: #333;
-      --game-prompt: #555;
-      --toggle-color: #999;
-      --input-bg: rgba(255,255,255,0.03);
-      --input-border: rgba(255,255,255,0.08);
-      --button-bg: rgba(255,255,255,0.03);
-      --button-border: rgba(255,255,255,0.1);
-      --button-text: #aaa;
-      --status-default: #666;
-      --particle-color: rgba(255, 255, 255, 0.1);
+      --bg: #17212b;
+      --chat-bg: #0e1621;
+      --bubble-sent: #2b5278;
+      --text-primary: #fff;
+      --text-secondary: #aab2bb;
+      --input-bg: #212e3c;
+      --input-border: #2b3a4a;
+      --btn-color: #8ea2b8;
+      --btn-hover-bg: #2b5278;
+      --status-bar-bg: #212e3c;
+      --shadow: 0 2px 10px rgba(0,0,0,0.3);
     }
     body.light-mode {
       --bg: #f5f5f5;
-      --card-bg: rgba(255, 255, 255, 0.9);
-      --text: #111;
-      --text-secondary: #333;
-      --border: rgba(0, 0, 0, 0.08);
-      --link-hover-bg: rgba(0, 0, 0, 0.03);
-      --link-hover-border: rgba(0, 0, 0, 0.2);
-      --rule-color: rgba(0, 0, 0, 0.2);
-      --footer-color: #aaa;
-      --game-prompt: #888;
-      --toggle-color: #333;
-      --input-bg: rgba(0,0,0,0.03);
-      --input-border: rgba(0,0,0,0.08);
-      --button-bg: rgba(0,0,0,0.03);
-      --button-border: rgba(0,0,0,0.1);
-      --button-text: #333;
-      --status-default: #888;
-      --particle-color: rgba(0, 0, 0, 0.1);
+      --chat-bg: #ffffff;
+      --bubble-sent: #e3ffd8;
+      --text-primary: #000;
+      --text-secondary: #707579;
+      --input-bg: #fff;
+      --input-border: #d3d9de;
+      --btn-color: #707579;
+      --btn-hover-bg: #e8ecef;
+      --status-bar-bg: #f5f5f5;
+      --shadow: 0 2px 10px rgba(0,0,0,0.05);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
       background: var(--bg);
-      min-height: 100vh; display: flex; align-items: center; justify-content: center;
-      padding: 1.5rem; overflow: hidden; position: relative;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       transition: background 0.4s;
     }
-    #particles { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
-    .card {
-      position: relative; z-index: 1;
-      background: var(--card-bg); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
-      border: 1px solid var(--border); border-radius: 0;
-      padding: 3rem 2.5rem; max-width: 420px; width: 100%; text-align: center;
-      transition: background 0.4s, border-color 0.4s;
+    .phone-frame {
+      width: 100%;
+      max-width: 400px;
+      height: 85vh;
+      max-height: 700px;
+      background: var(--chat-bg);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+    .status-bar {
+      background: var(--status-bar-bg);
+      padding: 0.8rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--input-border);
+    }
+    .status-bar .title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: 0.5px;
     }
     .theme-toggle {
-      position: absolute; top: 1rem; left: 1rem;
-      background: none; border: 1px solid transparent;
-      color: var(--toggle-color); font-size: 1.2rem; cursor: pointer;
-      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
-      border-radius: 50%; transition: all 0.3s;
+      background: none;
+      border: none;
+      color: var(--btn-color);
+      font-size: 1.3rem;
+      cursor: pointer;
+      width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
     }
-    .theme-toggle:hover { border-color: var(--border); background: var(--link-hover-bg); }
-    .rule { width: 40px; height: 1px; background: var(--rule-color); margin: 0 auto 2rem; transition: background 0.4s; }
-    h1 {
-      font-family: 'Georgia', 'Times New Roman', serif; font-size: 2rem; font-weight: 400;
-      color: var(--text); letter-spacing: 0.1em; margin-bottom: 2.2rem; text-transform: lowercase;
-      transition: color 0.4s;
+    .theme-toggle:hover { background: var(--btn-hover-bg); }
+    .messages {
+      flex: 1;
+      padding: 1rem 0.8rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
     }
-    textarea {
-      width: 100%; height: 150px; background: var(--input-bg);
-      border: 1px solid var(--input-border); border-radius: 0; padding: 1.2rem;
-      color: var(--text-secondary); font-size: 0.95rem; font-family: 'Segoe UI', system-ui, sans-serif;
-      resize: vertical; outline: none; text-align: start;
-      transition: background 0.4s, border-color 0.4s, color 0.4s;
+    .message {
+      display: flex;
+      justify-content: flex-end;
     }
-    textarea:focus { border-color: var(--link-hover-border); }
-    textarea::placeholder { color: #555; text-align: right; }
-    button {
-      margin-top: 1.8rem; width: 100%; padding: 0.9rem;
-      border: 1px solid var(--button-border); background: var(--button-bg);
-      color: var(--button-text); font-size: 1rem; font-weight: 400;
-      letter-spacing: 0.08em; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-      transition: all 0.2s; text-transform: lowercase;
+    .bubble {
+      max-width: 80%;
+      padding: 0.6rem 0.9rem;
+      border-radius: 18px 4px 18px 18px;
+      background: var(--bubble-sent);
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      word-wrap: break-word;
+      position: relative;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
-    button:hover {
-      color: var(--text); border-color: var(--link-hover-border); background: var(--link-hover-bg);
+    .bubble.emoji-only {
+      font-size: 2.5rem;
+      background: transparent;
+      box-shadow: none;
+      padding: 0.2rem;
     }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .spinner { display: none; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid white; border-radius: 50%; animation: spin 0.8s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    #status { margin-top: 1.5rem; font-size: 0.85rem; min-height: 1.5rem; color: var(--status-default); transition: all 0.2s; }
-    .success { color: #5f9; } .error { color: #f66; } .loading { color: #fc6; }
-    .footer { margin-top: 2rem; font-size: 0.6rem; color: var(--footer-color); letter-spacing: 0.15em; }
+    .bubble .time {
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      float: right;
+      margin-left: 0.5rem;
+      margin-top: 0.3rem;
+    }
+    .input-bar {
+      background: var(--input-bg);
+      padding: 0.6rem 0.8rem;
+      border-top: 1px solid var(--input-border);
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+    }
+    .attach-btn, .voice-btn, .emoji-toggle-btn {
+      background: none;
+      border: none;
+      color: var(--btn-color);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.3rem;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+    .attach-btn:hover, .voice-btn:hover, .emoji-toggle-btn:hover { color: #2b9cff; }
+    .voice-btn.recording {
+      color: #ff4d4d;
+    }
+    .text-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      resize: none;
+      max-height: 100px;
+      padding: 0.4rem 0;
+      font-family: inherit;
+    }
+    .send-btn {
+      background: none;
+      border: none;
+      color: #2b9cff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.3rem;
+      line-height: 1;
+      display: none;
+      position: relative;
+    }
+    .send-btn.visible { display: block; }
+    .send-btn:disabled { opacity: 0.5; cursor: default; }
+    .send-spinner {
+      display: none;
+      width: 20px; height: 20px;
+      border: 2px solid rgba(43,156,255,0.3);
+      border-top: 2px solid #2b9cff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+    .emoji-panel {
+      display: none;
+      background: var(--input-bg);
+      border-top: 1px solid var(--input-border);
+      padding: 0.5rem 0.3rem;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .emoji-panel.open { display: flex; }
+    .emoji-panel .emoji-btn {
+      background: none;
+      border: none;
+      font-size: 1.6rem;
+      cursor: pointer;
+      padding: 0.3rem;
+    }
+    .preview-area {
+      padding: 0.3rem 0.8rem;
+      background: var(--input-bg);
+      border-top: 1px solid var(--input-border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+    .preview-area .remove-preview {
+      color: #ff4d4d;
+      cursor: pointer;
+    }
+    #photoInput { display: none; }
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--input-border); border-radius: 4px; }
   </style>
 </head>
 <body>
-  <canvas id="particles"></canvas>
-  <div class="card">
-    <button class="theme-toggle" onclick="toggleTheme()">◑</button>
-    <div class="rule"></div>
-    <h1>whisper</h1>
-    <textarea id="message" placeholder="پیامت رو اینجا بنویس ((:" maxlength="2000" dir="auto"></textarea>
-    <button id="sendBtn" onclick="sendMessage()">
-      <span class="btn-text">send</span>
-      <span class="spinner" id="spinner"></span>
-    </button>
-    <div id="status"></div>
-    <div class="footer">—</div>
+  <div class="phone-frame">
+    <div class="status-bar">
+      <button class="theme-toggle" onclick="toggleTheme()" title="switch theme">◑</button>
+      <span class="title">whisper</span>
+      <div style="width:34px;"></div>
+    </div>
+
+    <div class="messages" id="messagesContainer"></div>
+
+    <div class="preview-area" id="previewArea" style="display:none;">
+      <span id="previewText"></span>
+      <span class="remove-preview" onclick="removeAttachment()">✕</span>
+    </div>
+
+    <div class="emoji-panel" id="emojiPanel">
+      <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
+      <button class="emoji-btn" onclick="sendEmoji('❤️')">❤️</button>
+      <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
+      <button class="emoji-btn" onclick="sendEmoji('😢')">😢</button>
+      <button class="emoji-btn" onclick="sendEmoji('😡')">😡</button>
+      <button class="emoji-btn" onclick="sendEmoji('👋')">👋</button>
+    </div>
+
+    <div class="input-bar">
+      <button class="emoji-toggle-btn" id="emojiToggleBtn" onclick="toggleEmojiPanel()">😊</button>
+      <label for="photoInput" class="attach-btn">📎</label>
+      <input type="file" id="photoInput" accept="image/*" onchange="handlePhotoSelect(this)">
+      <button class="voice-btn" id="voiceBtn" onclick="toggleRecording()">🎤</button>
+      <textarea class="text-input" id="messageInput" placeholder="پیامت رو اینجا بنویس..." dir="auto" rows="1" oninput="toggleSendButton()"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+        <span class="send-text">➤</span>
+        <span class="send-spinner" id="sendSpinner"></span>
+      </button>
+    </div>
   </div>
+
   <script>
     const body = document.body;
     const themeToggleBtn = document.querySelector('.theme-toggle');
@@ -527,92 +657,189 @@ WHISPER_HTML = r"""
     function toggleTheme() { setTheme(!body.classList.contains('light-mode')); }
     (localStorage.getItem('theme') === 'light') ? setTheme(true) : setTheme(false);
 
-    const canvasP = document.getElementById('particles');
-    const ctxP = canvasP.getContext('2d');
-    function resizeParticles() { canvasP.width = window.innerWidth; canvasP.height = window.innerHeight; }
-    resizeParticles();
-    window.addEventListener('resize', resizeParticles);
+    const messagesContainer = document.getElementById('messagesContainer');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendBtn');
+    const sendText = document.querySelector('.send-text');
+    const sendSpinner = document.getElementById('sendSpinner');
+    const photoInput = document.getElementById('photoInput');
+    const voiceBtn = document.getElementById('voiceBtn');
+    const previewArea = document.getElementById('previewArea');
+    const previewText = document.getElementById('previewText');
+    const emojiPanel = document.getElementById('emojiPanel');
 
-    const particles = [];
-    const particleCount = 50;
-    class Particle {
-      constructor() {
-        this.x = Math.random() * canvasP.width;
-        this.y = Math.random() * canvasP.height;
-        this.size = Math.random() * 1.5 + 0.3;
-        this.vx = (Math.random() - 0.5) * 0.3;
-        this.vy = (Math.random() - 0.5) * 0.3;
-      }
-      update() {
-        this.x += this.vx; this.y += this.vy;
-        if (this.x < 0 || this.x > canvasP.width) this.vx *= -1;
-        if (this.y < 0 || this.y > canvasP.height) this.vy *= -1;
-      }
-      draw() {
-        ctxP.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--particle-color').trim();
-        ctxP.beginPath();
-        ctxP.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctxP.fill();
+    let selectedFile = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recording = false;
+    let isSending = false;
+
+    function addMessage(text, isEmojiOnly = false) {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'message';
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble' + (isEmojiOnly ? ' emoji-only' : '');
+      bubble.textContent = text;
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'time';
+      const now = new Date();
+      timeSpan.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      bubble.appendChild(timeSpan);
+      msgDiv.appendChild(bubble);
+      messagesContainer.appendChild(msgDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function toggleSendButton() {
+      if (messageInput.value.trim() || selectedFile) {
+        sendButton.classList.add('visible');
+      } else {
+        sendButton.classList.remove('visible');
       }
     }
-    for (let i = 0; i < particleCount; i++) particles.push(new Particle());
-    function animateParticles() {
-      ctxP.clearRect(0, 0, canvasP.width, canvasP.height);
-      particles.forEach(p => { p.update(); p.draw(); });
-      requestAnimationFrame(animateParticles);
+
+    function toggleEmojiPanel() {
+      emojiPanel.classList.toggle('open');
     }
-    animateParticles();
+
+    function sendEmoji(emoji) {
+      addMessage(emoji, true);
+      sendToServer({ text: emoji });
+      emojiPanel.classList.remove('open');
+    }
+
+    function setSendingState(sending) {
+      isSending = sending;
+      if (sending) {
+        sendButton.disabled = true;
+        sendText.style.display = 'none';
+        sendSpinner.style.display = 'inline-block';
+      } else {
+        sendButton.disabled = false;
+        sendText.style.display = 'inline';
+        sendSpinner.style.display = 'none';
+      }
+    }
+
+    function handlePhotoSelect(input) {
+      if (input.files.length > 0) {
+        selectedFile = input.files[0];
+        previewText.textContent = '📷 ' + selectedFile.name;
+        previewArea.style.display = 'flex';
+        toggleSendButton();
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+      }
+    }
+
+    function removeAttachment() {
+      selectedFile = null;
+      photoInput.value = '';
+      previewArea.style.display = 'none';
+      toggleSendButton();
+    }
+
+    async function toggleRecording() {
+      if (recording) {
+        mediaRecorder.stop();
+        recording = false;
+        voiceBtn.classList.remove('recording');
+        voiceBtn.textContent = '🎤';
+      } else {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          try {
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/ogg' });
+          } catch (e) {
+            mediaRecorder = new MediaRecorder(stream);
+          }
+          audioChunks = [];
+          mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+          };
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(audioChunks, { type: 'audio/ogg' });
+            selectedFile = new File([blob], 'voice_message.ogg', { type: 'audio/ogg' });
+            previewText.textContent = '🎙️ Voice message';
+            previewArea.style.display = 'flex';
+            toggleSendButton();
+            stream.getTracks().forEach(track => track.stop());
+            recording = false;
+            voiceBtn.classList.remove('recording');
+            voiceBtn.textContent = '🎤';
+          };
+          mediaRecorder.start();
+          recording = true;
+          voiceBtn.classList.add('recording');
+          voiceBtn.textContent = '⏹️';
+          removeAttachment();
+        } catch (err) {
+          alert('Microphone access denied.');
+        }
+      }
+    }
 
     const PROXY_URL = '/whisper/send';
-    const messageInput = document.getElementById('message');
-    const sendBtn = document.getElementById('sendBtn');
-    const btnText = document.querySelector('.btn-text');
-    const spinner = document.getElementById('spinner');
-    const statusDiv = document.getElementById('status');
+    const FILE_PROXY_URL = '/whisper/send_file';
 
-    async function sendMessage() {
-      console.log('sendMessage called');
-      const text = messageInput.value.trim();
-      if (!text) {
-        statusDiv.textContent = 'پیامت خالی بود که!';
-        statusDiv.className = 'error';
-        console.log('empty text');
-        return;
-      }
-      sendBtn.disabled = true;
-      btnText.style.display = 'none';
-      spinner.style.display = 'inline-block';
-      statusDiv.textContent = '...';
-      statusDiv.className = 'loading';
-      console.log('sending...');
+    async function sendToServer(payload) {
       try {
-        const response = await fetch(PROXY_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text })
-        });
-        console.log('response status', response.status);
-        const result = await response.json();
-        if (result.success) {
-          statusDiv.textContent = 'ارسال شد';
-          statusDiv.className = 'success';
-          messageInput.value = '';
-          console.log('sent');
+        let response;
+        if (selectedFile) {
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          if (payload.text) formData.append('text', payload.text);
+          response = await fetch(FILE_PROXY_URL, { method: 'POST', body: formData });
         } else {
-          statusDiv.textContent = result.error || 'خطا';
-          statusDiv.className = 'error';
-          console.log('server error', result.error);
+          response = await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
         }
-      } catch (error) {
-        statusDiv.textContent = 'قطع شد';
-        statusDiv.className = 'error';
-        console.error('connection error', error);
-      } finally {
-        sendBtn.disabled = false;
-        btnText.style.display = 'inline';
-        spinner.style.display = 'none';
+        const result = await response.json();
+        if (!result.success) {
+          console.error('Send failed:', result.error);
+        }
+      } catch (err) {
+        console.error('Connection error:', err);
       }
     }
+
+    async function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text && !selectedFile) return;
+      if (isSending) return;
+
+      if (selectedFile) {
+        if (text) addMessage(text);
+        addMessage('📎 ' + (selectedFile.type.startsWith('image/') ? 'Photo' : 'Voice message'));
+      } else if (text) {
+        addMessage(text);
+      }
+
+      emojiPanel.classList.remove('open');
+
+      setSendingState(true);
+
+      await sendToServer({ text: text });
+
+      messageInput.value = '';
+      removeAttachment();
+      sendButton.classList.remove('visible');
+      setSendingState(false);
+    }
+
+    messageInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+      toggleSendButton();
+    });
+
+    window.addEventListener('load', () => {
+      messageInput.focus();
+    });
   </script>
 </body>
 </html>
@@ -1310,6 +1537,75 @@ def whisper_send():
                 {"success": False, "error": f"API error: {resp.text}"}
             ), resp.status_code
     except requests.exceptions.RequestException as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/whisper/send_file", methods=["POST"])
+def whisper_send_file():
+    config = load_whisper_config()
+    token = config.get("token")
+    chat_id = config.get("chat_id")
+    if not token or not chat_id:
+        return jsonify({"success": False, "error": "Bot not configured."}), 500
+
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"success": False, "error": "No file provided."}), 400
+
+    caption = request.form.get("text", "").strip()
+    mime = file.mimetype.lower() if file.mimetype else ""
+
+    if mime.startswith("image/"):
+        rubika_type = "Image"
+    elif mime.startswith("audio/") or mime.startswith("video/webm"):
+        rubika_type = "File"
+    else:
+        rubika_type = "File"
+
+    try:
+        resp = requests.post(
+            f"https://botapi.rubika.ir/v3/{token}/requestSendFile",
+            json={"type": rubika_type},
+            timeout=10,
+        )
+        if not resp.ok:
+            return jsonify(
+                {"success": False, "error": f"API error ({resp.status_code})"}
+            ), 500
+
+        resp_data = resp.json()
+        upload_url = resp_data.get("data", {}).get("upload_url")
+        if not upload_url:
+            app.logger.error(f"No upload_url: {resp.text}")
+            return jsonify({"success": False, "error": "No upload_url"}), 500
+
+        files = {"file": (file.filename, file.stream, file.mimetype)}
+        upload_resp = requests.post(upload_url, files=files, timeout=30)
+        if not upload_resp.ok:
+            app.logger.error(f"Upload failed: {upload_resp.text}")
+            return jsonify({"success": False, "error": "Upload failed"}), 500
+
+        upload_json = upload_resp.json()
+        file_id = upload_json.get("data", {}).get("file_id")
+        if not file_id:
+            app.logger.error(f"No file_id after upload: {upload_resp.text}")
+            return jsonify({"success": False, "error": "No file_id"}), 500
+
+        send_data = {"chat_id": chat_id, "file_id": file_id}
+        if caption:
+            send_data["text"] = caption
+
+        send_resp = requests.post(
+            f"https://botapi.rubika.ir/v3/{token}/sendFile", json=send_data, timeout=10
+        )
+        if send_resp.ok:
+            return jsonify({"success": True})
+        else:
+            app.logger.error(f"sendFile failed: {send_resp.text}")
+            return jsonify({"success": False, "error": "sendFile failed"}), 500
+
+    except Exception as e:
+        app.logger.error(f"Unexpected error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

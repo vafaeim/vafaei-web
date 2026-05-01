@@ -363,7 +363,31 @@ MAIN_HTML = r"""
       --button-border: rgba(0,0,0,0.1);
       --button-text: #333;
     }
+    .social-links {
+      display: flex;
+      justify-content: center;
+      gap: 1.2rem;
+      margin-top: 0.8rem;
+    }
+    .social-links a {
+      font-size: 1.8rem;
+      color: var(--text-secondary);
+      transition: opacity 0.2s;
+      text-decoration: none;
+      border: none !important;
+      padding: 0 !important;
+      background: none !important;
+      opacity: 0.25;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+    }
+    .social-links a:hover {
+      opacity: 0.7;
+      background: none !important;
+    }
   </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
   <canvas id="particles"></canvas>
@@ -376,10 +400,18 @@ MAIN_HTML = r"""
         <a href="/chat">Messenger</a>
         <a href="/whisper/">Anonymous Message</a>
         <a href="/douz/">Tic-Tac-Toe</a>
-        <a href="https://github.com/vafaeim" target="_blank">GitHub</a>
-        <a href="https://kaggle.com/vafaeii" target="_blank">Kaggle</a>
-        <a href="https://t.me/amirvafaeim" target="_blank">Telegram</a>
-        <a href="https://rubika.ir/amir__kavan" target="_blank">Rubika</a>
+      </div>
+      <br>
+      <div class="social-links">
+        <a href="https://github.com/vafaeim" target="_blank" title="GitHub">
+          <i class="fab fa-github"></i>
+        </a>
+        <a href="https://kaggle.com/vafaeii" target="_blank" title="Kaggle">
+          <i class="fab fa-kaggle"></i>
+        </a>
+        <a href="https://t.me/amirvafaeim" target="_blank" title="Telegram">
+          <i class="fab fa-telegram"></i>
+        </a>
       </div>
       <div class="footer">
         —<br>

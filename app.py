@@ -19,6 +19,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
 db_pool = None
+online_users = set()
+
+
+def get_online_users():
+    return online_users
 
 
 def init_pool():
@@ -157,6 +162,9 @@ def init_db():
                 cur.execute(
                     "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR"
                 )
+                cur.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP"
+                )
 
         print("INFO: Database initialized successfully.")
     except RuntimeError:
@@ -198,6 +206,17 @@ def load_whisper_config():
 def save_whisper_config(token, chat_id):
     with open(WHISPER_CONFIG_FILE, "w") as f:
         json.dump({"token": token, "chat_id": chat_id}, f)
+
+
+def update_last_seen(user_id):
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE users SET last_seen = NOW() WHERE id = %s", (user_id,)
+                )
+    except Exception:
+        pass
 
 
 MAIN_HTML = r"""
@@ -2149,6 +2168,7 @@ CHAT_HTML = r"""
       <div class="chat-header">
         <button class="back-btn" onclick="backToChats()">←</button>
         <span id="chatHeader"></span>
+        <span id="onlineStatus" style="margin-left:auto; font-size:0.8rem; color:var(--text-secondary);"></span>
       </div>
       <div class="reply-preview" id="replyPreview">
         <span class="reply-text" id="replyText"></span>
@@ -2268,6 +2288,12 @@ CHAT_HTML = r"""
         }
     });
 
+    socket.on('user_status_changed', (data) => {
+        if (data.user_id == otherUserId) {
+            updateOnlineStatus({ is_online: data.online });
+        }
+    });
+
     function showToast(message) {
         const toast = document.createElement('div');
         toast.className = 'error-toast';
@@ -2368,6 +2394,29 @@ CHAT_HTML = r"""
         });
     }
 
+    function updateOnlineStatus(status) {
+        const el = document.getElementById('onlineStatus');
+        if (status.is_online) {
+            el.innerHTML = '<span style="color:#34d399;">●</span> online';
+        } else {
+            const lastSeenStr = status.last_seen || window.lastOnlineTimestamp;
+            if (lastSeenStr) {
+                const last = new Date(lastSeenStr);
+                const now = new Date();
+                const diff = Math.floor((now - last) / 1000);
+                let text;
+                if (diff < 60) text = 'last seen just now';
+                else if (diff < 3600) text = `last seen ${Math.floor(diff/60)} minutes ago`;
+                else if (diff < 86400) text = `last seen ${Math.floor(diff/3600)} hours ago`;
+                else text = 'last seen ' + last.toLocaleDateString();
+                el.innerHTML = '<span style="color:#888;">●</span> ' + text;
+                window.lastOnlineTimestamp = lastSeenStr;
+            } else {
+                el.textContent = '';
+            }
+        }
+    }
+
     function openChat(chatId) {
         activeChatId = chatId;
         socket.emit('join_chat_room', { chat_id: chatId });
@@ -2385,6 +2434,13 @@ CHAT_HTML = r"""
             if (chat) {
                 document.getElementById('chatHeader').textContent = chat.other_username;
                 otherUserId = chat.other_user_id;
+
+                fetch('/api/user_status/' + otherUserId)
+                    .then(r => r.json())
+                    .then(status => {
+                        updateOnlineStatus(status);
+                        window.lastOnlineTimestamp = status.last_seen;
+                    });
             }
 
             fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
@@ -2399,7 +2455,6 @@ CHAT_HTML = r"""
         });
 
         socket.emit('seen', { chat_id: chatId });
-
         if (window.innerWidth < 700) {
             document.getElementById('sidebar').classList.add('hidden');
         }
@@ -2854,7 +2909,7 @@ def handle_chat_message(data):
                 msg = cur.fetchone()
                 msg["text"] = text or ""
                 msg["chat_id"] = chat_id
-                msg["created_at"] = msg["created_at"].isoformat()
+                msg["created_at"] = msg["created_at"].isoformat() + "Z"
                 msg["seen_by"] = msg["seen_by"] or []
 
                 cur.execute("SELECT username FROM users WHERE id = %s", (sender_id,))
@@ -3096,6 +3151,7 @@ def check_winner(board):
 def handle_join_chat(data=None):
     user_id = session.get("user_id")
     if user_id:
+        update_last_seen(user_id)
         join_room(f"user_{user_id}")
 
 
@@ -3108,6 +3164,9 @@ def handle_open_chat(data):
 
 @socketio.on("join_chat_room")
 def handle_join_chat_room(data):
+    user_id = session.get("user_id")
+    if user_id:
+        update_last_seen(user_id)
     chat_id = data.get("chat_id")
     if chat_id:
         join_room(f"chat_{chat_id}")
@@ -3445,7 +3504,11 @@ def get_chats():
                 chats = cur.fetchall()
                 for c in chats:
                     if c.get("last_time"):
-                        c["last_time"] = c["last_time"].isoformat()
+                        c["last_time"] = (
+                            c["last_time"].isoformat() + "Z"
+                            if c.get("last_time")
+                            else None
+                        )
     except RuntimeError:
         return jsonify({"error": "Database service unavailable"}), 503
 
@@ -3517,11 +3580,12 @@ def get_messages(chat_id):
 
     result = []
     for m in messages:
+        m["created_at"] = m["created_at"].isoformat() + "Z"
         msg_dict = {
             "id": m["id"],
             "sender_id": m["sender_id"],
             "text": m["text"],
-            "created_at": m["created_at"].isoformat(),
+            "created_at": m["created_at"],
             "sender_username": m["sender_username"],
             "seen_by": m["seen_by"] or [],
         }
@@ -3678,6 +3742,7 @@ def verify_otp():
                     display_name = existing_user["username"] or rubika_first_name
                     session["user_id"] = user_id
                     session["username"] = display_name
+                    update_last_seen(session["user_id"])
                     return jsonify({"success": True, "new_user": False})
                 else:
                     session["temp_rubika_chat_id"] = verified_chat_id
@@ -3766,6 +3831,7 @@ def login_password():
                     if check_password_hash(user["password_hash"], password):
                         session["user_id"] = user["id"]
                         session["username"] = user["username"]
+                        update_last_seen(session["user_id"])
                         return jsonify({"success": True})
 
                 return jsonify(
@@ -3780,6 +3846,73 @@ def set_password_page():
     if "user_id" not in session:
         return redirect(url_for("login"))
     return render_template_string(SET_PASSWORD_HTML)
+
+
+@app.route("/api/user_status/<int:user_id>")
+def user_status(user_id):
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT username, last_seen FROM users WHERE id = %s", (user_id,)
+                )
+                user = cur.fetchone()
+                if not user:
+                    return jsonify({"error": "User not found"}), 404
+
+                is_online = user_id in get_online_users()
+                return jsonify(
+                    {
+                        "username": user["username"],
+                        "is_online": is_online,
+                        "last_seen": user["last_seen"].isoformat() + "Z"
+                        if user["last_seen"]
+                        else None,
+                    }
+                )
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@socketio.on("connect")
+def handle_connect():
+    user_id = session.get("user_id")
+    if user_id:
+        update_last_seen(user_id)
+        online_users.add(user_id)
+        emit_status(user_id, online=True)
+
+
+@socketio.on("disconnect")
+def handle_disconnect():
+    user_id = session.get("user_id")
+    if user_id:
+        update_last_seen(user_id)
+        online_users.discard(user_id)
+        now_utc = datetime.utcnow().isoformat() + "Z"
+        emit_status(user_id, online=False, last_seen=now_utc)
+
+
+def emit_status(user_id, online, last_seen=None):
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id FROM chats WHERE user1_id = %s OR user2_id = %s",
+                    (user_id, user_id),
+                )
+                chat_ids = [row[0] for row in cur.fetchall()]
+                payload = {"user_id": user_id, "online": online}
+                if not online and last_seen:
+                    payload["last_seen"] = last_seen
+                for chat_id in chat_ids:
+                    socketio.emit(
+                        "user_status_changed",
+                        payload,
+                        room=f"chat_{chat_id}",
+                    )
+    except Exception:
+        pass
 
 
 # if __name__ == "__main__":

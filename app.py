@@ -13,6 +13,8 @@ import psycopg2.extras
 from contextlib import contextmanager
 from psycopg2.pool import ThreadedConnectionPool
 from flask import session, redirect, url_for
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 
@@ -149,6 +151,13 @@ def init_db():
                 cur.execute(
                     "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INT REFERENCES messages(id)"
                 )
+                cur.execute("""
+                    ALTER TABLE messages ADD COLUMN IF NOT EXISTS seen_by JSONB DEFAULT '[]'::jsonb
+                """)
+                cur.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR"
+                )
+
         print("INFO: Database initialized successfully.")
     except RuntimeError:
         print("WARNING: Could not initialize database – pool not available.")
@@ -159,6 +168,9 @@ def init_db():
 with app.app_context():
     init_pool()
     init_db()
+    from scheduler import start_scheduler
+
+    start_scheduler()
 
 
 WHISPER_CONFIG_FILE = "whisper_config.json"
@@ -1406,7 +1418,7 @@ LOGIN_HTML = r"""
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ورود امن</title>
+  <title>ورود</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -1428,142 +1440,204 @@ LOGIN_HTML = r"""
       width: 100%;
       box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
+    .tab-container {
+      display: flex;
+      background: #212e3c;
+      border-radius: 1rem;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+      gap: 0;
+    }
+    .tab {
+      flex: 1;
+      padding: 0.6rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      color: #8ea2b8;
+      border-bottom: 2px solid transparent;
+      transition: 0.2s;
+      background: none;
+      border: none;
+      font-family: inherit;
+    }
+    .tab.active {
+      color: #fff;
+      border-bottom-color: #2b9cff;
+    }
     h2 { margin-bottom: 0.25rem; font-size: 1.5rem; }
     .subtitle {
       font-size: 0.85rem;
       color: #aab2bb;
       margin-bottom: 1.5rem;
     }
-    .token-box {
-      background: #212e3c;
-      border-radius: 1rem;
-      padding: 1rem;
+    .form-group {
       margin: 1rem 0;
+      display: none;
     }
-    .token {
-      font-size: 1.8rem;
-      font-weight: 700;
-      letter-spacing: 0.3rem;
-      color: #2b9cff;
-      user-select: all;
-      word-break: break-all;
-      font-family: 'Courier New', monospace;
-      margin-bottom: 0.5rem;
+    .form-group.active {
+      display: block;
     }
-    .copy-hint {
-      font-size: 0.75rem;
-      color: #8ea2b8;
-    }
-    .bot-box {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.6rem;
-      background: #212e3c;
-      border-radius: 1rem;
+    input {
+      width: 100%;
       padding: 0.8rem;
-      margin: 1.2rem 0;
-      text-decoration: none;
-      color: #fff;
-      transition: background 0.2s;
-    }
-    .bot-box:hover { background: #2b5278; }
-    .bot-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      background-image: url('/static/assets/images/verifymebot.png');
-      background-size: cover;
-      background-position: center;
-    }
-    .bot-name {
-      font-weight: 600;
       font-size: 1rem;
-    }
-    .bot-link {
-      font-size: 0.75rem;
-      color: #aab2bb;
-    }
-    .timer {
-      font-size: 0.9rem;
-      color: #ffb300;
-      margin: 1rem 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.3rem;
-    }
-    .status {
-      margin: 1rem 0 0.5rem;
-      font-size: 0.9rem;
-      min-height: 1.5rem;
-    }
-    .error { color: #ff4d4d; }
-    .success { color: #34d399; }
-    .info { color: #aab2bb; }
-    .animate-pulse {
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.5; }
-      100% { opacity: 1; }
-    }
-    .btn-secondary {
-      background: transparent;
-      color: #8ea2b8;
+      background: #212e3c;
       border: 1px solid #2b3a4a;
-      padding: 0.8rem 1.5rem;
+      border-radius: 0.8rem;
+      color: #fff;
+      margin: 0.5rem 0;
+      outline: none;
+      font-family: inherit;
+    }
+    .btn {
+      background: #2b5278;
+      color: #fff;
+      border: none;
+      padding: 0.8rem 2rem;
       border-radius: 0.8rem;
       font-size: 1rem;
       cursor: pointer;
       transition: background 0.2s;
+      margin-top: 1rem;
+      width: 100%;
       font-family: inherit;
-      margin-top: 0.5rem;
+    }
+    .btn:hover { background: #3a6a99; }
+    .error { color: #ff4d4d; margin-top: 1rem; font-size: 0.9rem; }
+    .success { color: #34d399; margin-top: 1rem; font-size: 0.9rem; }
+    .timer {
+      font-size: 0.9rem;
+      color: #ffb300;
+      margin: 1rem 0;
+    }
+    .hidden { display: none; }
+    .token-box {
+    background: #212e3c;
+    border-radius: 1rem;
+    padding: 1rem;
+    margin: 1rem 0;
+    }
+    .token {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: 0.3rem;
+    color: #2b9cff;
+    user-select: all;
+    word-break: break-all;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 0.5rem;
+    }
+    .copy-hint {
+    font-size: 0.75rem;
+    color: #8ea2b8;
+    }
+    .bot-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    background: #212e3c;
+    border-radius: 1rem;
+    padding: 0.8rem;
+    margin: 1.2rem 0;
+    text-decoration: none;
+    color: #fff;
+    transition: background 0.2s;
+    }
+    .bot-box:hover { background: #2b5278; }
+    .bot-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-image: url('/static/assets/images/verifymebot.png');
+    background-size: cover;
+    background-position: center;
+    }
+    .bot-name {
+    font-weight: 600;
+    font-size: 1rem;
+    }
+    .bot-link {
+    font-size: 0.75rem;
+    color: #aab2bb;
+    }
+    .btn-secondary {
+    background: transparent;
+    color: #8ea2b8;
+    border: 1px solid #2b3a4a;
+    padding: 0.8rem 1.5rem;
+    border-radius: 0.8rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-family: inherit;
+    margin-top: 0.5rem;
     }
     .btn-secondary:hover { background: #212e3c; }
+    .status {
+    margin: 1rem 0;
+    min-height: 1.5rem;
+    }
+    .animate-pulse {
+    animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>🔐 ورود امن</h2>
-    <p class="subtitle">با ربات VerifymeBot احراز هویت کنید</p>
-
-    <div class="token-box">
-      <div class="token" id="otpCode">{{ code }}</div>
-      <div class="copy-hint">توکن را کپی کرده و برای ربات ارسال کنید</div>
+    <div class="tab-container">
+      <button class="tab active" id="tabOtp" onclick="switchTab('otp')">🤖 ورود با ربات</button>
+      <button class="tab" id="tabPass" onclick="switchTab('password')">🔑 رمز عبور</button>
     </div>
 
-    <a class="bot-box" href="https://rubika.ir/verifymebot" target="_blank">
-      <div class="bot-icon"></div>
-      <div>
-        <div class="bot-name">VerifymeBot</div>
-        <div class="bot-link">@verifymebot</div>
+    <!-- OTP Form -->
+    <div id="otpForm" class="form-group active">
+      <h2>🔐 ورود امن</h2>
+      <p class="subtitle">با ربات VerifymeBot احراز هویت کنید</p>
+      <div class="token-box">
+        <div class="token" id="otpCode">{{ code }}</div>
+        <div class="copy-hint">توکن را کپی کرده و برای ربات ارسال کنید</div>
       </div>
-    </a>
-
-    <div class="timer" id="timer">
-      <span>⏳</span> <span id="timerText">زمان باقی‌مانده: ۹۰ ثانیه</span>
+      <a class="bot-box" href="https://rubika.ir/verifymebot" target="_blank">
+        <div class="bot-icon"></div>
+        <div>
+          <div class="bot-name">VerifymeBot</div>
+          <div class="bot-link">@verifymebot</div>
+        </div>
+      </a>
+      <div class="timer" id="timer">
+        <span>⏳</span> <span id="timerText">زمان باقی‌مانده: ۹۰ ثانیه</span>
+      </div>
+      <div id="statusOtp" class="status"></div>
+      <button class="btn-secondary" onclick="window.location.reload()">دریافت توکن جدید</button>
     </div>
 
-    <div id="status" class="status">
-      <div class="info animate-pulse">در حال گوش دادن به پیام شما...</div>
+    <!-- Password Form -->
+    <div id="passwordForm" class="form-group">
+      <h2>🔑 ورود با رمز عبور</h2>
+      <input type="text" id="usernameInput" placeholder="نام کاربری">
+      <input type="password" id="passwordInputLogin" placeholder="رمز عبور">
+      <button class="btn" onclick="loginWithPassword()">ورود</button>
+      <div id="errorPass" class="error"></div>
     </div>
-
-    <button class="btn-secondary" onclick="window.location.reload()">
-      دریافت توکن جدید
-    </button>
   </div>
 
   <script>
+    let activeTab = 'otp';
     const code = "{{ code }}";
     const otpToken = "{{ otp_token }}";
+
     let timeLeft = 90;
     let expired = false;
     let checking = false;
 
     const timerEl = document.getElementById('timerText');
-    const statusEl = document.getElementById('status');
+    const statusEl = document.getElementById('statusOtp');
 
     function updateTimer() {
       if (expired) return;
@@ -1584,35 +1658,58 @@ LOGIN_HTML = r"""
       if (expired || checking) return;
       checking = true;
       statusEl.innerHTML = '<div class="info animate-pulse">در حال بررسی...</div>';
-
       try {
         const resp = await fetch(`/api/verify_otp?code=${encodeURIComponent(code)}&otp_token=${encodeURIComponent(otpToken)}`);
         const data = await resp.json();
         if (data.success) {
           statusEl.innerHTML = '<div class="success">تأیید شد! در حال انتقال...</div>';
           setTimeout(() => {
-            if (data.new_user) {
-              window.location.href = '/set-username';
-            } else {
-              window.location.href = '/chat';
-            }
+            window.location.href = data.new_user ? '/set-username' : '/chat';
           }, 800);
         } else {
-          statusEl.innerHTML = '<div class="info animate-pulse">در حال گوش دادن به پیام شما...</div>';
           checking = false;
         }
       } catch (err) {
-        statusEl.innerHTML = '<div class="info animate-pulse">تلاش مجدد...</div>';
         checking = false;
       }
     }
 
     checkVerification();
     setInterval(() => {
-      if (!expired && !checking) {
-        checkVerification();
-      }
+      if (!expired && !checking) checkVerification();
     }, 2000);
+
+    async function loginWithPassword() {
+      const username = document.getElementById('usernameInput').value.trim();
+      const password = document.getElementById('passwordInputLogin').value;
+      if (!username || !password) {
+        document.getElementById('errorPass').textContent = 'لطفاً نام کاربری و رمز عبور را وارد کنید.';
+        return;
+      }
+      try {
+        const resp = await fetch('/api/login_password', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ username, password })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          window.location.href = '/chat';
+        } else {
+          document.getElementById('errorPass').textContent = data.error || 'نام کاربری یا رمز عبور اشتباه است.';
+        }
+      } catch (err) {
+        document.getElementById('errorPass').textContent = 'خطای شبکه.';
+      }
+    }
+
+    function switchTab(tab) {
+      activeTab = tab;
+      document.getElementById('tabOtp').classList.toggle('active', tab === 'otp');
+      document.getElementById('tabPass').classList.toggle('active', tab === 'password');
+      document.getElementById('otpForm').classList.toggle('active', tab === 'otp');
+      document.getElementById('passwordForm').classList.toggle('active', tab === 'password');
+    }
   </script>
 </body>
 </html>
@@ -1975,6 +2072,38 @@ CHAT_HTML = r"""
     }
     .theme-toggle:hover { background: var(--hover-bg); }
 
+    .error-toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #ff4d4d;
+        color: #fff;
+        padding: 0.6rem 1.2rem;
+        border-radius: 0.5rem;
+        z-index: 999;
+        font-size: 0.9rem;
+        white-space: nowrap;
+    }
+
+    .typing-indicator {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin: 0.3rem 0;
+        font-style: italic;
+    }
+
+    .msg-ticks {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        margin-left: 4px;
+        float: right;
+        direction: ltr;
+    }
+    .msg-ticks.seen {
+        color: #4fc3f7;
+    }
+
     @media (max-width: 700px) {
       .app-container {
         border-radius: 0;
@@ -2005,6 +2134,7 @@ CHAT_HTML = r"""
         <span class="title">Chats</span>
         <div style="display:flex;align-items:center;gap:0.3rem;">
           <button id="changeUsernameSidebarBtn" class="theme-toggle" style="font-size:1rem;" title="Change Username">✏️</button>
+          <button id="changePasswordSidebarBtn" class="theme-toggle" style="font-size:1rem;" title="Change Password">🔑</button>
           <button class="theme-toggle" onclick="toggleTheme()">◑</button>
         </div>
       </div>
@@ -2077,7 +2207,36 @@ CHAT_HTML = r"""
     let isLoadingMore = false;
     const MESSAGE_LIMIT = 50;
     let currentUsername = null;
+    let currentUserId = null;
+    let otherUserId = null;
     let replyToMessage = null;
+    let typingTimeout;
+    let typingIndicator = document.getElementById('typingIndicator');
+
+    socket.on('user_typing', (data) => {
+        if (!typingIndicator) {
+            typingIndicator = document.createElement('div');
+            typingIndicator.id = 'typingIndicator';
+            typingIndicator.className = 'typing-indicator';
+            typingIndicator.textContent = data.user + ' is typing...';
+            document.getElementById('messagesContainer').appendChild(typingIndicator);
+        }
+    });
+
+    socket.on('user_stop_typing', () => {
+        if (typingIndicator) {
+            typingIndicator.remove();
+            typingIndicator = null;
+        }
+    });
+
+    document.getElementById('chatInput').addEventListener('input', function() {
+        socket.emit('typing', { chat_id: activeChatId });
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            socket.emit('stop_typing', { chat_id: activeChatId });
+        }, 1000);
+    });
 
     socket.on('connect', () => {
       socket.emit('join_chat');
@@ -2087,6 +2246,7 @@ CHAT_HTML = r"""
       const chatId = Number(msg.chat_id);
       if (activeChatId === chatId) {
         appendMessage(msg, msg.sender_username === currentUsername);
+        socket.emit('seen', { chat_id: chatId });
       }
       loadChats();
     });
@@ -2095,7 +2255,31 @@ CHAT_HTML = r"""
       loadChats();
     });
 
-    fetch('/api/whoami').then(r => r.json()).then(d => { currentUsername = d.username; }).catch(() => {});
+    socket.on('error', (data) => {
+        showToast('⚠️ ' + (data.msg || 'An error occurred'));
+    });
+
+    socket.on('message_seen', (data) => {
+        if (data.chat_id === activeChatId) {
+            document.querySelectorAll('.message-row.sent .msg-ticks').forEach(tick => {
+                tick.textContent = '✓✓';
+                tick.classList.add('seen');
+            });
+        }
+    });
+
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'error-toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    fetch('/api/whoami').then(r => r.json()).then(d => {
+        currentUserId = d.user_id;
+        currentUsername = d.username;
+    });
 
     function isEmojiOnly(text) {
       if (!text) return false;
@@ -2196,24 +2380,29 @@ CHAT_HTML = r"""
         msgContainer.innerHTML = '';
         oldestMessageId = null;
 
-        fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
-            .then(r => r.json())
-            .then(messages => {
-                if (messages.length > 0) {
-                    oldestMessageId = messages[0].id;
-                }
-                messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
-                msgContainer.scrollTop = msgContainer.scrollHeight;
-            });
+        fetch('/api/chats').then(r => r.json()).then(chats => {
+            const chat = chats.find(c => c.id == chatId);
+            if (chat) {
+                document.getElementById('chatHeader').textContent = chat.other_username;
+                otherUserId = chat.other_user_id;
+            }
 
-      fetch('/api/chats').then(r => r.json()).then(chats => {
-        const chat = chats.find(c => c.id == chatId);
-        if (chat) document.getElementById('chatHeader').textContent = chat.other_username;
-      });
+            fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
+                .then(r => r.json())
+                .then(messages => {
+                    if (messages.length > 0) {
+                        oldestMessageId = messages[0].id;
+                    }
+                    messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
+                    msgContainer.scrollTop = msgContainer.scrollHeight;
+                });
+        });
 
-      if (window.innerWidth < 700) {
-        document.getElementById('sidebar').classList.add('hidden');
-      }
+        socket.emit('seen', { chat_id: chatId });
+
+        if (window.innerWidth < 700) {
+            document.getElementById('sidebar').classList.add('hidden');
+        }
     }
 
     function createMessageElement(msg, isSent) {
@@ -2264,6 +2453,16 @@ CHAT_HTML = r"""
             document.getElementById('replyPreview').classList.add('active');
             document.getElementById('chatInput').focus();
         });
+
+        if (isSent) {
+            const ticks = document.createElement('span');
+            ticks.className = 'msg-ticks';
+            const seenBy = msg.seen_by || [];
+            const seen = seenBy.includes(otherUserId);
+            ticks.textContent = seen ? '✓✓' : '✓';
+            if (seen) ticks.classList.add('seen');
+            bubble.appendChild(ticks);
+        }
 
         row.appendChild(bubble);
         return row;
@@ -2329,6 +2528,13 @@ CHAT_HTML = r"""
       });
     }
 
+    const changePasswordSidebarBtn = document.getElementById('changePasswordSidebarBtn');
+    if (changePasswordSidebarBtn) {
+    changePasswordSidebarBtn.addEventListener('click', () => {
+        window.location.href = '/set-password';
+    });
+    }
+
     cancelUsernameBtn.addEventListener('click', () => {
       usernameModal.style.display = 'none';
       newUsernameInput.value = '';
@@ -2379,7 +2585,10 @@ CHAT_HTML = r"""
             fetch(`/api/messages/${activeChatId}?limit=${MESSAGE_LIMIT}&before_id=${oldestMessageId}`)
                 .then(r => r.json())
                 .then(olderMessages => {
-                    if (!olderMessages.length) return;
+                    if (!olderMessages.length) {
+                        oldestMessageId = null;
+                        return;
+                    }
 
                     const fragment = document.createDocumentFragment();
                     olderMessages.forEach(msg => {
@@ -2484,7 +2693,7 @@ SET_USERNAME_HTML = r"""
         });
         const data = await resp.json();
         if (data.success) {
-          window.location.href = '/chat';
+          window.location.href = '/set-password';
         } else {
           document.getElementById('errorMsg').textContent = data.error || 'خطا در ثبت نام کاربری.';
         }
@@ -2497,6 +2706,122 @@ SET_USERNAME_HTML = r"""
 </html>
 """
 
+SET_PASSWORD_HTML = r"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Set Password</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Vazirmatn', Tahoma, sans-serif;
+      background: #17212b;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+    .card {
+      background: #0e1621;
+      padding: 2rem;
+      border-radius: 1.5rem;
+      text-align: center;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    h2 { margin-bottom: 0.5rem; }
+    p { color: #aab2bb; font-size: 0.9rem; margin-bottom: 1.5rem; }
+    input {
+      width: 100%;
+      padding: 0.8rem;
+      font-size: 1rem;
+      background: #212e3c;
+      border: 1px solid #2b3a4a;
+      border-radius: 0.8rem;
+      color: #fff;
+      margin: 0.5rem 0;
+      outline: none;
+      font-family: inherit;
+    }
+    .btn {
+      background: #2b5278;
+      color: #fff;
+      border: none;
+      padding: 0.8rem 2rem;
+      border-radius: 0.8rem;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 1rem;
+      width: 100%;
+    }
+    .btn:hover { background: #3a6a99; }
+    .btn-skip {
+      background: transparent;
+      color: #8ea2b8;
+      border: 1px solid #2b3a4a;
+      margin-top: 0.5rem;
+    }
+    .error { color: #ff4d4d; margin-top: 1rem; font-size: 0.9rem; }
+    .success { color: #34d399; margin-top: 1rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>🔒 تنظیم رمز عبور</h2>
+    <p>می‌توانید برای ورود سریع‌تر رمز عبور تنظیم کنید (اختیاری)</p>
+    <input type="password" id="passwordInput" placeholder="رمز عبور (حداقل ۶ کاراکتر)">
+    <input type="password" id="confirmPasswordInput" placeholder="تکرار رمز عبور">
+    <button class="btn" onclick="submitPassword()">ذخیره و ادامه</button>
+    <button class="btn btn-skip" onclick="skipPassword()">بعداً تنظیم می‌کنم</button>
+    <div id="msg" class="error"></div>
+  </div>
+
+  <script>
+    async function submitPassword() {
+      const pwd = document.getElementById('passwordInput').value;
+      const confirm = document.getElementById('confirmPasswordInput').value;
+      if (pwd.length < 6) {
+        document.getElementById('msg').textContent = 'رمز عبور باید حداقل ۶ کاراکتر باشد.';
+        document.getElementById('msg').className = 'error';
+        return;
+      }
+      if (pwd !== confirm) {
+        document.getElementById('msg').textContent = 'رمز عبور و تکرار آن مطابقت ندارند.';
+        document.getElementById('msg').className = 'error';
+        return;
+      }
+      try {
+        const resp = await fetch('/api/set_password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          window.location.href = '/chat';
+        } else {
+          document.getElementById('msg').textContent = data.error || 'خطا در ذخیره رمز.';
+          document.getElementById('msg').className = 'error';
+        }
+      } catch (err) {
+        document.getElementById('msg').textContent = 'خطای شبکه.';
+        document.getElementById('msg').className = 'error';
+      }
+    }
+
+    function skipPassword() {
+      window.location.href = '/chat';
+    }
+  </script>
+</body>
+</html>
+"""
 
 dous_rooms = {}
 
@@ -2523,14 +2848,14 @@ def handle_chat_message(data):
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     """INSERT INTO messages (chat_id, sender_id, text, reply_to_id)
-                    VALUES (%s, %s, %s, %s) RETURNING id, created_at""",
+                    VALUES (%s, %s, %s, %s) RETURNING id, created_at, seen_by""",
                     (chat_id, sender_id, text, reply_to),
                 )
                 msg = cur.fetchone()
-
                 msg["text"] = text or ""
                 msg["chat_id"] = chat_id
                 msg["created_at"] = msg["created_at"].isoformat()
+                msg["seen_by"] = msg["seen_by"] or []
 
                 cur.execute("SELECT username FROM users WHERE id = %s", (sender_id,))
                 user = cur.fetchone()
@@ -2538,12 +2863,9 @@ def handle_chat_message(data):
 
                 if reply_to:
                     cur.execute(
-                        """
-                      SELECT m.text, u.username AS sender_username
-                      FROM messages m
-                      JOIN users u ON m.sender_id = u.id
-                      WHERE m.id = %s
-                  """,
+                        """SELECT m.text, u.username AS sender_username
+                        FROM messages m JOIN users u ON m.sender_id = u.id
+                        WHERE m.id = %s""",
                         (reply_to,),
                     )
                     reply_msg = cur.fetchone()
@@ -2552,34 +2874,34 @@ def handle_chat_message(data):
                             "text": reply_msg["text"],
                             "sender_username": reply_msg["sender_username"],
                         }
-    except RuntimeError:
-        emit("error", {"msg": "Database temporarily unavailable"})
-        return
 
-    emit("new_message", msg, room=f"chat_{chat_id}")
-
-    try:
-        with database() as conn:
-            with conn.cursor() as cur:
                 cur.execute(
                     "SELECT user1_id, user2_id FROM chats WHERE id = %s", (chat_id,)
                 )
                 row = cur.fetchone()
+                other = None
                 if row:
-                    other = row[0] if row[0] != sender_id else row[1]
-                    emit(
-                        "new_message_notification",
-                        {
-                            "chat_id": chat_id,
-                            "sender_username": user["username"],
-                            "text": (text or "📎 replied")[:30]
-                            + ("..." if len(text or "") > 30 else ""),
-                        },
-                        room=f"user_{other}",
+                    other = (
+                        row["user1_id"]
+                        if row["user1_id"] != sender_id
+                        else row["user2_id"]
                     )
+
+        emit("new_message", msg, room=f"chat_{chat_id}")
+
+        if other:
+            emit(
+                "new_message_notification",
+                {
+                    "chat_id": chat_id,
+                    "sender_username": user["username"],
+                    "text": (text or "📎 replied")[:30]
+                    + ("..." if len(text or "") > 30 else ""),
+                },
+                room=f"user_{other}",
+            )
     except RuntimeError:
         emit("error", {"msg": "Database temporarily unavailable"})
-        return
 
 
 @socketio.on("create_room")
@@ -2789,6 +3111,56 @@ def handle_join_chat_room(data):
     chat_id = data.get("chat_id")
     if chat_id:
         join_room(f"chat_{chat_id}")
+
+
+@socketio.on("typing")
+def handle_typing(data):
+    chat_id = data.get("chat_id")
+    if chat_id:
+        emit(
+            "user_typing",
+            {"user": session.get("username")},
+            room=f"chat_{chat_id}",
+            include_self=False,
+        )
+
+
+@socketio.on("stop_typing")
+def handle_stop_typing(data):
+    chat_id = data.get("chat_id")
+    if chat_id:
+        emit("user_stop_typing", room=f"chat_{chat_id}", include_self=False)
+
+
+@socketio.on("seen")
+def handle_seen(data):
+    chat_id = data.get("chat_id")
+    user_id = session.get("user_id")
+    if not chat_id or not user_id:
+        return
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE messages
+                    SET seen_by = seen_by || %s::jsonb
+                    WHERE chat_id = %s
+                      AND sender_id != %s
+                      AND NOT seen_by @> %s::jsonb
+                """,
+                    (json.dumps([user_id]), chat_id, user_id, json.dumps([user_id])),
+                )
+                updated = cur.rowcount
+        if updated > 0:
+            emit(
+                "message_seen",
+                {"user_id": user_id, "chat_id": chat_id},
+                room=f"chat_{chat_id}",
+                include_self=False,
+            )
+    except RuntimeError:
+        pass
 
 
 def rubika_get_updates(token, max_pages=5):
@@ -3058,7 +3430,8 @@ def get_chats():
                 cur.execute(
                     """
                 SELECT c.id,
-                       CASE WHEN c.user1_id = %s THEN u2.username ELSE u1.username END AS other_username,
+                        CASE WHEN c.user1_id = %s THEN u2.id ELSE u1.id END AS other_user_id,
+                        CASE WHEN c.user1_id = %s THEN u2.username ELSE u1.username END AS other_username,
                        (SELECT text FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
                        (SELECT created_at FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_time
                 FROM chats c
@@ -3067,7 +3440,7 @@ def get_chats():
                 WHERE c.user1_id = %s OR c.user2_id = %s
                 ORDER BY last_time DESC NULLS LAST
             """,
-                    (my_id, my_id, my_id),
+                    (my_id, my_id, my_id, my_id),
                 )
                 chats = cur.fetchall()
                 for c in chats:
@@ -3104,6 +3477,8 @@ def get_messages(chat_id):
                         """
                         SELECT m.id, m.text, m.created_at, m.reply_to_id,
                               u.username AS sender_username,
+                              m.sender_id,
+                              m.seen_by,
                               rm.text AS reply_text,
                               ru.username AS reply_sender_username
                         FROM messages m
@@ -3121,6 +3496,8 @@ def get_messages(chat_id):
                         """
                         SELECT m.id, m.text, m.created_at, m.reply_to_id,
                               u.username AS sender_username,
+                              m.sender_id,
+                              m.seen_by,
                               rm.text AS reply_text,
                               ru.username AS reply_sender_username
                         FROM messages m
@@ -3142,9 +3519,11 @@ def get_messages(chat_id):
     for m in messages:
         msg_dict = {
             "id": m["id"],
+            "sender_id": m["sender_id"],
             "text": m["text"],
             "created_at": m["created_at"].isoformat(),
             "sender_username": m["sender_username"],
+            "seen_by": m["seen_by"] or [],
         }
         if m["reply_to_id"] and m["reply_text"]:
             msg_dict["reply_to"] = {
@@ -3157,40 +3536,18 @@ def get_messages(chat_id):
 
 @app.route("/api/whoami")
 def whoami():
-    return jsonify({"username": session.get("username", "unknown")})
+    return jsonify(
+        {
+            "user_id": session.get("user_id"),
+            "username": session.get("username", "unknown"),
+        }
+    )
 
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login", methods=["GET"])
 def login():
     if "user_id" in session:
         return redirect(url_for("chat_page"))
-
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        chat_id = session.get("temp_rubika_chat_id")
-        if not username or not chat_id:
-            return redirect(url_for("login"))
-        try:
-            with database() as conn:
-                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                    cur.execute(
-                        "INSERT INTO users (username, rubika_chat_id) VALUES (%s, %s) RETURNING id",
-                        (username, chat_id),
-                    )
-                    user = cur.fetchone()
-                session.pop("temp_rubika_chat_id", None)
-                session["user_id"] = user["id"]
-                session["username"] = username
-                return redirect(url_for("chat_page"))
-        except psycopg2.errors.UniqueViolation:
-            return render_template_string(
-                LOGIN_HTML,
-                error="This username is already taken. Please choose another.",
-            )
-        except RuntimeError:
-            return jsonify({"error": "Database service unavailable"}), 503
-
-        return redirect(url_for("login"))
 
     code = "".join(
         secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8)
@@ -3366,6 +3723,63 @@ def set_username_page():
     if "temp_rubika_chat_id" not in session:
         return redirect(url_for("login"))
     return render_template_string(SET_USERNAME_HTML)
+
+
+@app.route("/api/set_password", methods=["POST"])
+def set_password():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.get_json()
+    password = data.get("password", "")
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    password_hash = generate_password_hash(password)
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE users SET password_hash = %s WHERE id = %s",
+                    (password_hash, session["user_id"]),
+                )
+        return jsonify({"success": True})
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@app.route("/api/login_password", methods=["POST"])
+def login_password():
+    data = request.get_json()
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, username, password_hash FROM users WHERE username = %s",
+                    (username,),
+                )
+                user = cur.fetchone()
+                if user and user["password_hash"]:
+                    if check_password_hash(user["password_hash"], password):
+                        session["user_id"] = user["id"]
+                        session["username"] = user["username"]
+                        return jsonify({"success": True})
+
+                return jsonify(
+                    {"success": False, "error": "Invalid username or password"}
+                ), 401
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@app.route("/set-password")
+def set_password_page():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    return render_template_string(SET_PASSWORD_HTML)
 
 
 # if __name__ == "__main__":

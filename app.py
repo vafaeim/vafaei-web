@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import string
 import random
@@ -9,9 +10,29 @@ from flask import Flask, request, jsonify, render_template_string
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import psycopg2
 import psycopg2.extras
+from contextlib import contextmanager
+from psycopg2.pool import ThreadedConnectionPool
 from flask import session, redirect, url_for
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
+
+db_pool = None
+
+
+def init_pool():
+    global db_pool
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        print("WARNING: DATABASE_URL not set. Database features disabled.")
+        return
+    try:
+        db_pool = ThreadedConnectionPool(1, 10, db_url)
+        print("INFO: Database connection pool created.")
+    except Exception as e:
+        print(f"ERROR: Could not create connection pool: {e}")
+        db_pool = None
+
+
 app.config["SECRET_KEY"] = "amirrrr-secret-douz"
 VERIFY_BOT_TOKEN = os.environ.get("VERIFY_BOT_TOKEN", "")
 
@@ -28,84 +49,115 @@ socketio = SocketIO(
 
 
 def get_db():
-    db_url = os.environ.get("DATABASE_URL")
-    if not db_url:
+    if db_pool is None:
+        return None
+    try:
+        return db_pool.getconn()
+    except Exception:
         return None
 
-    default_url = db_url.rsplit("/", 1)[0] + "/postgres"
-    target_db = db_url.rsplit("/", 1)[-1]
 
+def return_db(conn):
+    if db_pool and conn is not None:
+        try:
+            db_pool.putconn(conn)
+        except Exception:
+            pass
+
+
+@contextmanager
+def database():
+    conn = get_db()
+    if conn is None:
+        raise RuntimeError("Database unavailable")
     try:
-        conn_default = psycopg2.connect(default_url)
-        conn_default.autocommit = True
-        with conn_default.cursor() as cur:
-            cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (target_db,))
-            if not cur.fetchone():
-                cur.execute(f"CREATE DATABASE {target_db}")
-        conn_default.close()
-    except Exception as e:
-        pass
-
-    conn = psycopg2.connect(db_url)
-    return conn
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        return_db(conn)
 
 
 def init_db():
-    conn = get_db()
-    if conn is None:
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
         print("WARNING: Database not available, skipping initialization.")
         return
-    with conn.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username VARCHAR(50) UNIQUE NOT NULL,
-                rubika_chat_id VARCHAR UNIQUE,
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS chats (
-                id SERIAL PRIMARY KEY,
-                user1_id INT REFERENCES users(id),
-                user2_id INT REFERENCES users(id),
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS messages (
-                id SERIAL PRIMARY KEY,
-                chat_id INT REFERENCES chats(id),
-                sender_id INT REFERENCES users(id),
-                text TEXT NOT NULL,
-                reply_to_id INT REFERENCES messages(id),
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS otps (
-                id SERIAL PRIMARY KEY,
-                code VARCHAR(10) NOT NULL,
-                session_token VARCHAR(64) UNIQUE NOT NULL,
-                rubika_chat_id VARCHAR,
-                created_at_unix BIGINT NOT NULL,
-                expires_at_unix BIGINT NOT NULL,
-                used BOOLEAN DEFAULT FALSE
-            );
-        """)
-        cur.execute("ALTER TABLE otps ALTER COLUMN code TYPE VARCHAR(10)")
-        cur.execute(
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS rubika_chat_id VARCHAR UNIQUE"
-        )
-        cur.execute(
-            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INT REFERENCES messages(id)"
-        )
-    conn.commit()
-    conn.close()
-    print("INFO: Database initialized successfully.")
+
+    target_db = db_url.rsplit("/", 1)[-1]
+    if target_db != "postgres":
+        try:
+            default_url = db_url.rsplit("/", 1)[0] + "/postgres"
+            conn_default = psycopg2.connect(default_url)
+            conn_default.autocommit = True
+            with conn_default.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM pg_database WHERE datname = %s", (target_db,)
+                )
+                if not cur.fetchone():
+                    cur.execute(f"CREATE DATABASE {target_db}")
+            conn_default.close()
+        except Exception as e:
+            print(f"WARNING: Could not ensure database exists: {e}")
+
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        username VARCHAR(50) UNIQUE NOT NULL,
+                        rubika_chat_id VARCHAR UNIQUE,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS chats (
+                        id SERIAL PRIMARY KEY,
+                        user1_id INT REFERENCES users(id),
+                        user2_id INT REFERENCES users(id),
+                        created_at TIMESTAMP DEFAULT NOW()
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS messages (
+                        id SERIAL PRIMARY KEY,
+                        chat_id INT REFERENCES chats(id),
+                        sender_id INT REFERENCES users(id),
+                        text TEXT NOT NULL,
+                        reply_to_id INT REFERENCES messages(id),
+                        created_at TIMESTAMP DEFAULT NOW()
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS otps (
+                        id SERIAL PRIMARY KEY,
+                        code VARCHAR(10) NOT NULL,
+                        session_token VARCHAR(64) UNIQUE NOT NULL,
+                        rubika_chat_id VARCHAR,
+                        created_at_unix BIGINT NOT NULL,
+                        expires_at_unix BIGINT NOT NULL,
+                        used BOOLEAN DEFAULT FALSE
+                    );
+                """)
+                cur.execute("ALTER TABLE otps ALTER COLUMN code TYPE VARCHAR(10)")
+                cur.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS rubika_chat_id VARCHAR UNIQUE"
+                )
+                cur.execute(
+                    "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INT REFERENCES messages(id)"
+                )
+        print("INFO: Database initialized successfully.")
+    except RuntimeError:
+        print("WARNING: Could not initialize database – pool not available.")
+    except Exception as e:
+        print(f"ERROR during database init: {e}")
 
 
 with app.app_context():
+    init_pool()
     init_db()
 
 
@@ -1213,7 +1265,7 @@ DOUZ_HTML = r"""
     }
     (localStorage.getItem('theme') === 'light') ? body.classList.add('light-mode') : body.classList.remove('light-mode');
 
-    const socket = io({ transports: ['polling'] });
+    const socket = io();
 
     let myRoom = null;
     let mySymbol = null;
@@ -2009,8 +2061,21 @@ CHAT_HTML = r"""
     }
     (localStorage.getItem('theme') === 'light') ? body.classList.add('light-mode') : body.classList.remove('light-mode');
 
-    const socket = io({ transports: ['polling'] });
+    function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return String(unsafe)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    const socket = io();
     let activeChatId = null;
+    let oldestMessageId = null;
+    let isLoadingMore = false;
+    const MESSAGE_LIMIT = 50;
     let currentUsername = null;
     let replyToMessage = null;
 
@@ -2048,9 +2113,14 @@ CHAT_HTML = r"""
       fetch(`/api/search_users?q=${encodeURIComponent(q)}`)
         .then(r => r.json())
         .then(users => {
-          resultsDiv.innerHTML = users.map(u =>
-            `<div class="search-result-item" onclick="startChat('${u.id}')">${u.username}</div>`
-          ).join('');
+          resultsDiv.innerHTML = '';
+          users.forEach(u => {
+              const div = document.createElement('div');
+              div.className = 'search-result-item';
+              div.textContent = u.username;
+              div.onclick = () => startChat(u.id);
+              resultsDiv.appendChild(div);
+          });
           resultsDiv.style.display = users.length ? 'block' : 'none';
         });
     }
@@ -2076,35 +2146,65 @@ CHAT_HTML = r"""
         .then(r => r.json())
         .then(chats => {
           const chatList = document.getElementById('chatList');
-          chatList.innerHTML = chats.map(c => `
-            <div class="chat-item ${activeChatId === c.id ? 'active' : ''}" onclick="openChat(${c.id})">
-              <div class="avatar">${c.other_username[0].toUpperCase()}</div>
-              <div class="chat-info">
-                <div class="chat-name">${c.other_username}</div>
-                <div class="last-message">${c.last_message || ''}</div>
-              </div>
-              <div class="chat-time">${c.last_time ? new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</div>
-            </div>
-          `).join('');
+          chatList.innerHTML = '';
+          chats.forEach(c => {
+              const item = document.createElement('div');
+              item.className = 'chat-item' + (activeChatId === c.id ? ' active' : '');
+              item.onclick = () => openChat(c.id);
+
+              const avatar = document.createElement('div');
+              avatar.className = 'avatar';
+              avatar.textContent = c.other_username[0].toUpperCase();
+              item.appendChild(avatar);
+
+              const infoDiv = document.createElement('div');
+              infoDiv.className = 'chat-info';
+
+              const nameDiv = document.createElement('div');
+              nameDiv.className = 'chat-name';
+              nameDiv.textContent = c.other_username;
+              infoDiv.appendChild(nameDiv);
+
+              const lastMsg = document.createElement('div');
+              lastMsg.className = 'last-message';
+              lastMsg.textContent = c.last_message || '';
+              infoDiv.appendChild(lastMsg);
+
+              item.appendChild(infoDiv);
+
+              const timeDiv = document.createElement('div');
+              timeDiv.className = 'chat-time';
+              timeDiv.textContent = c.last_time
+                  ? new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : '';
+              item.appendChild(timeDiv);
+
+              chatList.appendChild(item);
+          });
         });
     }
 
     function openChat(chatId) {
-      activeChatId = chatId;
-      socket.emit('join_chat_room', { chat_id: chatId });
-      cancelReply();
+        activeChatId = chatId;
+        socket.emit('join_chat_room', { chat_id: chatId });
+        cancelReply();
 
-      const mainChat = document.getElementById('mainChat');
-      mainChat.classList.add('active');
-      document.getElementById('inputArea').style.display = 'flex';
-      const msgContainer = document.getElementById('messagesContainer');
-      msgContainer.innerHTML = '';
+        const mainChat = document.getElementById('mainChat');
+        mainChat.classList.add('active');
+        document.getElementById('inputArea').style.display = 'flex';
+        const msgContainer = document.getElementById('messagesContainer');
+        msgContainer.innerHTML = '';
+        oldestMessageId = null;
 
-      fetch(`/api/messages/${chatId}`)
-        .then(r => r.json())
-        .then(messages => {
-          messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
-        });
+        fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
+            .then(r => r.json())
+            .then(messages => {
+                if (messages.length > 0) {
+                    oldestMessageId = messages[0].id;
+                }
+                messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
+                msgContainer.scrollTop = msgContainer.scrollHeight;
+            });
 
       fetch('/api/chats').then(r => r.json()).then(chats => {
         const chat = chats.find(c => c.id == chatId);
@@ -2116,53 +2216,64 @@ CHAT_HTML = r"""
       }
     }
 
-    function appendMessage(msg, isSent) {
-      const container = document.getElementById('messagesContainer');
-      const row = document.createElement('div');
-      row.className = `message-row ${isSent ? 'sent' : 'received'}`;
-      const bubble = document.createElement('div');
-      bubble.className = `bubble ${isSent ? 'sent' : 'received'}`;
-      bubble.setAttribute('dir', 'auto');
+    function createMessageElement(msg, isSent) {
+        const row = document.createElement('div');
+        row.className = 'message-row ' + (isSent ? 'sent' : 'received');
 
-      if (isEmojiOnly(msg.text)) {
-        bubble.classList.add('emoji-only');
-        bubble.textContent = msg.text;
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble ' + (isSent ? 'sent' : 'received');
+        bubble.setAttribute('dir', 'auto');
+
+        if (isEmojiOnly(msg.text)) {
+            bubble.classList.add('emoji-only');
+            bubble.textContent = msg.text;
+            row.appendChild(bubble);
+            return row;
+        }
+
+        if (msg.reply_to) {
+            const quoteDiv = document.createElement('div');
+            quoteDiv.className = 'reply-quote';
+            quoteDiv.setAttribute('dir', 'auto');
+
+            const senderSpan = document.createElement('div');
+            senderSpan.className = 'reply-sender';
+            senderSpan.textContent = msg.reply_to.sender_username;
+            quoteDiv.appendChild(senderSpan);
+
+            const previewSpan = document.createElement('div');
+            const previewText = msg.reply_to.text.length > 60 ? msg.reply_to.text.substring(0, 60) + '...' : msg.reply_to.text;
+            previewSpan.textContent = previewText;
+            quoteDiv.appendChild(previewSpan);
+
+            bubble.appendChild(quoteDiv);
+        }
+
+        const textNode = document.createTextNode(msg.text || '');
+        bubble.appendChild(textNode);
+
+        const time = document.createElement('span');
+        time.className = 'message-time';
+        time.textContent = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        bubble.appendChild(time);
+
+        bubble.addEventListener('click', () => {
+            replyToMessage = msg;
+            const previewText = msg.text.length > 40 ? msg.text.substring(0, 40) + '...' : msg.text;
+            document.getElementById('replyText').textContent = '↩ ' + previewText;
+            document.getElementById('replyPreview').classList.add('active');
+            document.getElementById('chatInput').focus();
+        });
+
         row.appendChild(bubble);
+        return row;
+    }
+
+    function appendMessage(msg, isSent) {
+        const container = document.getElementById('messagesContainer');
+        const row = createMessageElement(msg, isSent);
         container.appendChild(row);
         container.scrollTop = container.scrollHeight;
-        return;
-      }
-
-      if (msg.reply_to) {
-        const quoteDiv = document.createElement('div');
-        quoteDiv.className = 'reply-quote';
-        quoteDiv.setAttribute('dir', 'auto');
-        quoteDiv.innerHTML = `
-          <div class="reply-sender">${msg.reply_to.sender_username}</div>
-          <div>${msg.reply_to.text.length > 60 ? msg.reply_to.text.substring(0, 60) + '...' : msg.reply_to.text}</div>
-        `;
-        bubble.appendChild(quoteDiv);
-      }
-
-      const textNode = document.createTextNode(msg.text || '');
-      bubble.appendChild(textNode);
-
-      const time = document.createElement('span');
-      time.className = 'message-time';
-      time.textContent = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      bubble.appendChild(time);
-
-      bubble.addEventListener('click', () => {
-        replyToMessage = msg;
-        const previewText = msg.text.length > 40 ? msg.text.substring(0, 40) + '...' : msg.text;
-        document.getElementById('replyText').textContent = '↩ ' + previewText;
-        document.getElementById('replyPreview').classList.add('active');
-        document.getElementById('chatInput').focus();
-      });
-
-      row.appendChild(bubble);
-      container.appendChild(row);
-      container.scrollTop = container.scrollHeight;
     }
 
     function cancelReply() {
@@ -2255,6 +2366,38 @@ CHAT_HTML = r"""
         usernameMsg.textContent = 'Network error.';
         usernameMsg.style.color = '#ff4d4d';
       }
+    });
+    const messagesContainerEl = document.getElementById('messagesContainer');
+    messagesContainerEl.addEventListener('scroll', function() {
+        if (isLoadingMore) return;
+        if (messagesContainerEl.scrollTop < 30 && oldestMessageId && activeChatId) {
+            isLoadingMore = true;
+
+            const prevScrollHeight = messagesContainerEl.scrollHeight;
+            const prevScrollTop = messagesContainerEl.scrollTop;
+
+            fetch(`/api/messages/${activeChatId}?limit=${MESSAGE_LIMIT}&before_id=${oldestMessageId}`)
+                .then(r => r.json())
+                .then(olderMessages => {
+                    if (!olderMessages.length) return;
+
+                    const fragment = document.createDocumentFragment();
+                    olderMessages.forEach(msg => {
+                        const isSent = msg.sender_username === currentUsername;
+                        fragment.appendChild(createMessageElement(msg, isSent));
+                    });
+
+                    messagesContainerEl.insertBefore(fragment, messagesContainerEl.firstChild);
+                    oldestMessageId = olderMessages[0].id;
+
+                    const newScrollHeight = messagesContainerEl.scrollHeight;
+                    messagesContainerEl.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop;
+                })
+                .catch(err => console.error('Error loading older messages:', err))
+                .finally(() => {
+                    isLoadingMore = false;
+                });
+        }
     });
   </script>
 </body>
@@ -2375,53 +2518,55 @@ def handle_chat_message(data):
     if not chat_id:
         return
 
-    with get_db() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """INSERT INTO messages (chat_id, sender_id, text, reply_to_id)
-                   VALUES (%s, %s, %s, %s) RETURNING id, created_at""",
-                (chat_id, sender_id, text, reply_to),
-            )
-            msg = cur.fetchone()
-            conn.commit()
-
-            msg["text"] = text or ""
-            msg["chat_id"] = chat_id
-            msg["created_at"] = msg["created_at"].isoformat()
-
-            cur.execute("SELECT username FROM users WHERE id = %s", (sender_id,))
-            user = cur.fetchone()
-            msg["sender_username"] = user["username"]
-
-            if reply_to:
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
-                    """
-                    SELECT m.text, u.username AS sender_username
-                    FROM messages m
-                    JOIN users u ON m.sender_id = u.id
-                    WHERE m.id = %s
-                """,
-                    (reply_to,),
+                    """INSERT INTO messages (chat_id, sender_id, text, reply_to_id)
+                    VALUES (%s, %s, %s, %s) RETURNING id, created_at""",
+                    (chat_id, sender_id, text, reply_to),
                 )
-                reply_msg = cur.fetchone()
-                if reply_msg:
-                    msg["reply_to"] = {
-                        "text": reply_msg["text"],
-                        "sender_username": reply_msg["sender_username"],
-                    }
+                msg = cur.fetchone()
+
+                msg["text"] = text or ""
+                msg["chat_id"] = chat_id
+                msg["created_at"] = msg["created_at"].isoformat()
+
+                cur.execute("SELECT username FROM users WHERE id = %s", (sender_id,))
+                user = cur.fetchone()
+                msg["sender_username"] = user["username"]
+
+                if reply_to:
+                    cur.execute(
+                        """
+                      SELECT m.text, u.username AS sender_username
+                      FROM messages m
+                      JOIN users u ON m.sender_id = u.id
+                      WHERE m.id = %s
+                  """,
+                        (reply_to,),
+                    )
+                    reply_msg = cur.fetchone()
+                    if reply_msg:
+                        msg["reply_to"] = {
+                            "text": reply_msg["text"],
+                            "sender_username": reply_msg["sender_username"],
+                        }
+    except RuntimeError:
+        emit("error", {"msg": "Database temporarily unavailable"})
+        return
 
     emit("new_message", msg, room=f"chat_{chat_id}")
 
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT user1_id, user2_id FROM chats WHERE id = %s", (chat_id,)
-            )
-            row = cur.fetchone()
-            if row:
-                other = row[0] if row[0] != sender_id else row[1]
-                other_sid = online_users.get(other)
-                if other_sid:
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT user1_id, user2_id FROM chats WHERE id = %s", (chat_id,)
+                )
+                row = cur.fetchone()
+                if row:
+                    other = row[0] if row[0] != sender_id else row[1]
                     emit(
                         "new_message_notification",
                         {
@@ -2432,6 +2577,9 @@ def handle_chat_message(data):
                         },
                         room=f"user_{other}",
                     )
+    except RuntimeError:
+        emit("error", {"msg": "Database temporarily unavailable"})
+        return
 
 
 @socketio.on("create_room")
@@ -2622,16 +2770,11 @@ def check_winner(board):
     return None
 
 
-online_users = {}
-
-
 @socketio.on("join_chat")
 def handle_join_chat(data=None):
     user_id = session.get("user_id")
-    if not user_id:
-        return
-    online_users[user_id] = request.sid
-    join_room(f"user_{user_id}")
+    if user_id:
+        join_room(f"user_{user_id}")
 
 
 @socketio.on("open_chat")
@@ -2858,16 +3001,17 @@ def search_users():
     query = request.args.get("q", "").strip()
     if not query:
         return jsonify([])
-    with get_db() as conn:
-        if conn is None:
-            return jsonify({"error": "Database not available"}), 503
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, username FROM users WHERE username ILIKE %s LIMIT 10",
+                    (query,),
+                )
+                users = cur.fetchall()
+    except RuntimeError:
+        return jsonify({"error": "Database service unavailable"}), 503
 
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                "SELECT id, username FROM users WHERE username ILIKE %s LIMIT 10",
-                (query,),
-            )
-            users = cur.fetchall()
     return jsonify(users)
 
 
@@ -2880,26 +3024,26 @@ def start_chat():
     my_id = session.get("user_id")
     if not my_id:
         return jsonify({"error": "Not logged in"}), 401
-    with get_db() as conn:
-        if conn is None:
-            return jsonify({"error": "Database not available"}), 503
-
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
                 SELECT id FROM chats
                 WHERE (user1_id = %s AND user2_id = %s) OR (user1_id = %s AND user2_id = %s)
             """,
-                (my_id, other_user_id, other_user_id, my_id),
-            )
-            chat = cur.fetchone()
-            if not chat:
-                cur.execute(
-                    "INSERT INTO chats (user1_id, user2_id) VALUES (%s, %s) RETURNING id",
-                    (my_id, other_user_id),
+                    (my_id, other_user_id, other_user_id, my_id),
                 )
                 chat = cur.fetchone()
-                conn.commit()
+                if not chat:
+                    cur.execute(
+                        "INSERT INTO chats (user1_id, user2_id) VALUES (%s, %s) RETURNING id",
+                        (my_id, other_user_id),
+                    )
+                    chat = cur.fetchone()
+    except RuntimeError:
+        return jsonify({"error": "Database service unavailable"}), 503
+
     return jsonify({"chat_id": chat["id"]})
 
 
@@ -2908,10 +3052,11 @@ def get_chats():
     my_id = session.get("user_id")
     if not my_id:
         return jsonify([])
-    with get_db() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
                 SELECT c.id,
                        CASE WHEN c.user1_id = %s THEN u2.username ELSE u1.username END AS other_username,
                        (SELECT text FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
@@ -2922,12 +3067,15 @@ def get_chats():
                 WHERE c.user1_id = %s OR c.user2_id = %s
                 ORDER BY last_time DESC NULLS LAST
             """,
-                (my_id, my_id, my_id),
-            )
-            chats = cur.fetchall()
-            for c in chats:
-                if c.get("last_time"):
-                    c["last_time"] = c["last_time"].isoformat()
+                    (my_id, my_id, my_id),
+                )
+                chats = cur.fetchall()
+                for c in chats:
+                    if c.get("last_time"):
+                        c["last_time"] = c["last_time"].isoformat()
+    except RuntimeError:
+        return jsonify({"error": "Database service unavailable"}), 503
+
     return jsonify(chats)
 
 
@@ -2936,29 +3084,75 @@ def get_messages(chat_id):
     my_id = session.get("user_id")
     if not my_id:
         return jsonify([])
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT user1_id, user2_id FROM chats WHERE id = %s", (chat_id,)
-            )
-            row = cur.fetchone()
-            if not row or (row[0] != my_id and row[1] != my_id):
-                return jsonify([])
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                """
-                SELECT m.id, m.text, m.created_at, u.username AS sender_username
-                FROM messages m
-                JOIN users u ON m.sender_id = u.id
-                WHERE m.chat_id = %s
-                ORDER BY m.created_at ASC
-            """,
-                (chat_id,),
-            )
-            messages = cur.fetchall()
-            for m in messages:
-                m["created_at"] = m["created_at"].isoformat()
-    return jsonify(messages)
+
+    before_id = request.args.get("before_id", type=int)
+    limit = min(request.args.get("limit", 50, type=int), 100)
+
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT user1_id, user2_id FROM chats WHERE id = %s", (chat_id,)
+                )
+                row = cur.fetchone()
+                if not row or (row[0] != my_id and row[1] != my_id):
+                    return jsonify([])
+
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                if before_id:
+                    cur.execute(
+                        """
+                        SELECT m.id, m.text, m.created_at, m.reply_to_id,
+                              u.username AS sender_username,
+                              rm.text AS reply_text,
+                              ru.username AS reply_sender_username
+                        FROM messages m
+                        JOIN users u ON m.sender_id = u.id
+                        LEFT JOIN messages rm ON m.reply_to_id = rm.id
+                        LEFT JOIN users ru ON rm.sender_id = ru.id
+                        WHERE m.chat_id = %s AND m.id < %s
+                        ORDER BY m.id DESC
+                        LIMIT %s
+                    """,
+                        (chat_id, before_id, limit),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT m.id, m.text, m.created_at, m.reply_to_id,
+                              u.username AS sender_username,
+                              rm.text AS reply_text,
+                              ru.username AS reply_sender_username
+                        FROM messages m
+                        JOIN users u ON m.sender_id = u.id
+                        LEFT JOIN messages rm ON m.reply_to_id = rm.id
+                        LEFT JOIN users ru ON rm.sender_id = ru.id
+                        WHERE m.chat_id = %s
+                        ORDER BY m.id DESC
+                        LIMIT %s
+                    """,
+                        (chat_id, limit),
+                    )
+                messages = cur.fetchall()
+                messages.reverse()
+    except RuntimeError:
+        return jsonify({"error": "Database service unavailable"}), 503
+
+    result = []
+    for m in messages:
+        msg_dict = {
+            "id": m["id"],
+            "text": m["text"],
+            "created_at": m["created_at"].isoformat(),
+            "sender_username": m["sender_username"],
+        }
+        if m["reply_to_id"] and m["reply_text"]:
+            msg_dict["reply_to"] = {
+                "text": m["reply_text"],
+                "sender_username": m["reply_sender_username"],
+            }
+        result.append(msg_dict)
+    return jsonify(result)
 
 
 @app.route("/api/whoami")
@@ -2976,26 +3170,25 @@ def login():
         chat_id = session.get("temp_rubika_chat_id")
         if not username or not chat_id:
             return redirect(url_for("login"))
-
-        with get_db() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                try:
+        try:
+            with database() as conn:
+                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                     cur.execute(
                         "INSERT INTO users (username, rubika_chat_id) VALUES (%s, %s) RETURNING id",
                         (username, chat_id),
                     )
                     user = cur.fetchone()
-                    conn.commit()
-                    session.pop("temp_rubika_chat_id", None)
-                    session["user_id"] = user["id"]
-                    session["username"] = username
-                    return redirect(url_for("chat_page"))
-                except psycopg2.errors.UniqueViolation:
-                    conn.rollback()
-                    return render_template_string(
-                        LOGIN_HTML,
-                        error="This username is already taken. Please choose another.",
-                    )
+                session.pop("temp_rubika_chat_id", None)
+                session["user_id"] = user["id"]
+                session["username"] = username
+                return redirect(url_for("chat_page"))
+        except psycopg2.errors.UniqueViolation:
+            return render_template_string(
+                LOGIN_HTML,
+                error="This username is already taken. Please choose another.",
+            )
+        except RuntimeError:
+            return jsonify({"error": "Database service unavailable"}), 503
 
         return redirect(url_for("login"))
 
@@ -3006,13 +3199,15 @@ def login():
     now_unix = int(datetime.utcnow().timestamp())
     expires_unix = now_unix + 90
 
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO otps (code, session_token, created_at_unix, expires_at_unix) VALUES (%s, %s, %s, %s)",
-                (code, otp_token, now_unix, expires_unix),
-            )
-        conn.commit()
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO otps (code, session_token, created_at_unix, expires_at_unix) VALUES (%s, %s, %s, %s)",
+                    (code, otp_token, now_unix, expires_unix),
+                )
+    except RuntimeError:
+        return jsonify({"error": "Database service unavailable"}), 503
 
     return render_template_string(LOGIN_HTML, code=code, otp_token=otp_token)
 
@@ -3026,23 +3221,29 @@ def set_username():
     username = data.get("username", "").strip()
     if not username:
         return jsonify({"error": "Username cannot be empty."}), 400
+    if not re.match(r"^[a-zA-Z0-9_]{3,20}$", username):
+        return jsonify(
+            {
+                "error": "Username must be 3-20 characters, letters, numbers or underscore."
+            }
+        ), 400
 
-    with get_db() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            try:
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     "INSERT INTO users (username, rubika_chat_id) VALUES (%s, %s) RETURNING id",
                     (username, session["temp_rubika_chat_id"]),
                 )
                 user = cur.fetchone()
-                conn.commit()
-                session.pop("temp_rubika_chat_id", None)
-                session["user_id"] = user["id"]
-                session["username"] = username
-                return jsonify({"success": True})
-            except psycopg2.errors.UniqueViolation:
-                conn.rollback()
-                return jsonify({"error": "Username already taken"}), 409
+            session.pop("temp_rubika_chat_id", None)
+            session["user_id"] = user["id"]
+            session["username"] = username
+            return jsonify({"success": True})
+    except psycopg2.errors.UniqueViolation:
+        return jsonify({"error": "Username already taken"}), 409
+    except RuntimeError:
+        return jsonify({"error": "Database service unavailable"}), 503
 
 
 @app.route("/api/verify_otp")
@@ -3051,83 +3252,81 @@ def verify_otp():
     otp_token = request.args.get("otp_token", "").strip()
     if not code or not otp_token:
         return jsonify({"success": False, "error": "پارامترها ناقص هستند."})
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT * FROM otps WHERE session_token = %s AND used = FALSE AND expires_at_unix > %s",
+                    (otp_token, int(datetime.utcnow().timestamp())),
+                )
+                otp_record = cur.fetchone()
+                if not otp_record:
+                    return jsonify({"success": False, "error": "کد منقضی یا نامعتبر."})
 
-    with get_db() as conn:
-        if conn is None:
-            return jsonify({"error": "Database not available"}), 503
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                "SELECT * FROM otps WHERE session_token = %s AND used = FALSE AND expires_at_unix > %s",
-                (otp_token, int(datetime.utcnow().timestamp())),
-            )
-            otp_record = cur.fetchone()
-            if not otp_record:
-                return jsonify({"success": False, "error": "کد منقضی یا نامعتبر."})
+                token = VERIFY_BOT_TOKEN
+                if not token:
+                    return jsonify(
+                        {"success": False, "error": "ربات تأیید هویت تنظیم نشده است."}
+                    )
 
-            token = VERIFY_BOT_TOKEN
-            if not token:
-                return jsonify(
-                    {"success": False, "error": "ربات تأیید هویت تنظیم نشده است."}
+                updates_data = rubika_get_updates(token, max_pages=2)
+                if not updates_data or updates_data.get("status") != "OK":
+                    return jsonify(
+                        {"success": False, "error": "خطا در دریافت پیام‌های ربات."}
+                    )
+
+                updates = updates_data.get("data", {}).get("updates", [])
+                verified_chat_id = None
+                for update in updates:
+                    if update.get("type") == "NewMessage":
+                        new_msg = update.get("new_message", {})
+                        if new_msg.get("text") == code and new_msg.get("time"):
+                            msg_time = int(new_msg["time"])
+                            otp_created = int(otp_record["created_at_unix"])
+                            if msg_time >= otp_created:
+                                verified_chat_id = update.get("chat_id")
+                                break
+
+                if not verified_chat_id:
+                    return jsonify(
+                        {"success": False, "error": "هنوز پیامی با این کد دریافت نشده."}
+                    )
+
+                cur.execute(
+                    "UPDATE otps SET used = TRUE, rubika_chat_id = %s WHERE id = %s",
+                    (verified_chat_id, otp_record["id"]),
                 )
 
-            updates_data = rubika_get_updates(token, max_pages=2)
-            if not updates_data or updates_data.get("status") != "OK":
-                return jsonify(
-                    {"success": False, "error": "خطا در دریافت پیام‌های ربات."}
+                chat_data = rubika_get_chat(token, verified_chat_id)
+                if not chat_data or chat_data.get("status") != "OK":
+                    return jsonify(
+                        {"success": False, "error": "خطا در دریافت اطلاعات کاربر."}
+                    )
+
+                user_info = chat_data["data"]["chat"]
+                rubika_first_name = (
+                    user_info.get("first_name", "")
+                    or user_info.get("username", "")
+                    or "کاربر"
                 )
 
-            updates = updates_data.get("data", {}).get("updates", [])
-            verified_chat_id = None
-            for update in updates:
-                if update.get("type") == "NewMessage":
-                    new_msg = update.get("new_message", {})
-                    if new_msg.get("text") == code and new_msg.get("time"):
-                        msg_time = int(new_msg["time"])
-                        otp_created = int(otp_record["created_at_unix"])
-                        if msg_time >= otp_created:
-                            verified_chat_id = update.get("chat_id")
-                            break
-
-            if not verified_chat_id:
-                return jsonify(
-                    {"success": False, "error": "هنوز پیامی با این کد دریافت نشده."}
+                cur.execute(
+                    "SELECT id, username FROM users WHERE rubika_chat_id = %s",
+                    (verified_chat_id,),
                 )
+                existing_user = cur.fetchone()
 
-            cur.execute(
-                "UPDATE otps SET used = TRUE, rubika_chat_id = %s WHERE id = %s",
-                (verified_chat_id, otp_record["id"]),
-            )
-
-            chat_data = rubika_get_chat(token, verified_chat_id)
-            if not chat_data or chat_data.get("status") != "OK":
-                return jsonify(
-                    {"success": False, "error": "خطا در دریافت اطلاعات کاربر."}
-                )
-
-            user_info = chat_data["data"]["chat"]
-            rubika_first_name = (
-                user_info.get("first_name", "")
-                or user_info.get("username", "")
-                or "کاربر"
-            )
-
-            cur.execute(
-                "SELECT id, username FROM users WHERE rubika_chat_id = %s",
-                (verified_chat_id,),
-            )
-            existing_user = cur.fetchone()
-
-            if existing_user:
-                user_id = existing_user["id"]
-                display_name = existing_user["username"] or rubika_first_name
-                conn.commit()
-                session["user_id"] = user_id
-                session["username"] = display_name
-                return jsonify({"success": True, "new_user": False})
-            else:
-                session["temp_rubika_chat_id"] = verified_chat_id
-                conn.commit()
-                return jsonify({"success": True, "new_user": True})
+                if existing_user:
+                    user_id = existing_user["id"]
+                    display_name = existing_user["username"] or rubika_first_name
+                    session["user_id"] = user_id
+                    session["username"] = display_name
+                    return jsonify({"success": True, "new_user": False})
+                else:
+                    session["temp_rubika_chat_id"] = verified_chat_id
+                    return jsonify({"success": True, "new_user": True})
+    except RuntimeError:
+        return jsonify({"error": "Database service unavailable"}), 503
 
 
 @app.route("/api/change_username", methods=["POST"])
@@ -3140,21 +3339,26 @@ def change_username():
     if not new_username:
         return jsonify({"error": "Username required"}), 400
 
-    with get_db() as conn:
-        if conn is None:
-            return jsonify({"error": "Database not available"}), 503
-        with conn.cursor() as cur:
-            try:
+    if not re.match(r"^[a-zA-Z0-9_]{3,20}$", new_username):
+        return jsonify(
+            {
+                "error": "Username must be 3-20 characters, letters, numbers or underscore."
+            }
+        ), 400
+
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE users SET username = %s WHERE id = %s",
                     (new_username, session["user_id"]),
                 )
-                conn.commit()
-                session["username"] = new_username
-                return jsonify({"success": True})
-            except psycopg2.errors.UniqueViolation:
-                conn.rollback()
-                return jsonify({"error": "Username already taken"}), 409
+            session["username"] = new_username
+            return jsonify({"success": True})
+    except psycopg2.errors.UniqueViolation:
+        return jsonify({"error": "Username already taken"}), 409
+    except RuntimeError:
+        return jsonify({"error": "Database service unavailable"}), 503
 
 
 @app.route("/set-username")

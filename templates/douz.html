@@ -306,6 +306,25 @@
       replayBtn.classList.add('hidden');
     });
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const prejoinRoom = urlParams.get('room');
+    if (prejoinRoom) {
+        socket.on('connect', () => {
+            socket.emit('join_room', { room: prejoinRoom });
+        });
+        if (socket.connected) {
+            socket.emit('join_room', { room: prejoinRoom });
+        }
+    }
+
+    socket.on('error', (data) => {
+        alert(data.msg);
+        if (data.msg === 'Room not found' || data.msg === 'Room full') {
+            lobby.classList.remove('hidden');
+            gameArea.classList.add('hidden');
+        }
+    });
+
     leaveBtn.addEventListener('click', () => {
       socket.emit('leave_room', {room: myRoom});
       myRoom = null;

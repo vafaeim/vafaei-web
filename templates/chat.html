@@ -429,6 +429,7 @@
 
     <div class="main-chat" id="mainChat">
       <div class="chat-header">
+        <button id="playDouzBtn" style="background:none;border:none;font-size:1.2rem;cursor:pointer;display:none;" title="Play Tic-Tac-Toe">🎮</button>
         <button class="back-btn" onclick="backToChats()">←</button>
         <span id="chatHeader"></span>
         <span id="onlineStatus" style="margin-left:auto; font-size:0.8rem; color:var(--text-secondary);"></span>
@@ -495,6 +496,7 @@
     let replyToMessage = null;
     let typingTimeout;
     let typingIndicator = document.getElementById('typingIndicator');
+    const playDouzBtn = document.getElementById('playDouzBtn');
 
     socket.on('user_typing', (data) => {
         if (!typingIndicator) {
@@ -690,6 +692,7 @@
         const mainChat = document.getElementById('mainChat');
         mainChat.classList.add('active');
         document.getElementById('inputArea').style.display = 'flex';
+        playDouzBtn.style.display = 'inline-block';
         const msgContainer = document.getElementById('messagesContainer');
         msgContainer.innerHTML = '';
         oldestMessageId = null;
@@ -824,6 +827,7 @@
     function backToChats() {
       document.getElementById('mainChat').classList.remove('active');
       document.getElementById('sidebar').classList.remove('hidden');
+      playDouzBtn.style.display = 'none';
       activeChatId = null;
       cancelReply();
     }
@@ -925,6 +929,24 @@
                 .finally(() => {
                     isLoadingMore = false;
                 });
+        }
+    });
+    playDouzBtn.addEventListener('click', async () => {
+        try {
+            const resp = await fetch('/api/create_douz_room', { method: 'POST' });
+            const data = await resp.json();
+            if (data.room) {
+                const douzLink = `${window.location.origin}/douz/?room=${data.room}`;
+                socket.emit('send_chat_message', {
+                    chat_id: activeChatId,
+                    text: `🎮 Let's play Tic-Tac-Toe! ${douzLink}`,
+                });
+                window.open(douzLink, '_blank');
+            } else {
+                showToast('Failed to create game room');
+            }
+        } catch (e) {
+            showToast('Failed to create game room');
         }
     });
   </script>

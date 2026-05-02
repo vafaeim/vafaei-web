@@ -1,7 +1,7 @@
 import json
 import re
-from flask import request, jsonify, session, redirect, render_template
-from extensions import app
+from flask import request, jsonify, session, render_template, redirect, url_for
+from extensions import app, socketio
 from database import database
 import psycopg2.extras
 import psycopg2.errors
@@ -106,8 +106,8 @@ def get_chats():
                 SELECT c.id,
                         CASE WHEN c.user1_id = %s THEN u2.id ELSE u1.id END AS other_user_id,
                         CASE WHEN c.user1_id = %s THEN u2.username ELSE u1.username END AS other_username,
-                       (SELECT text FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
-                       (SELECT created_at FROM messages WHERE chat_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_time
+                        (SELECT text FROM messages WHERE chat_id = c.id AND deleted = FALSE ORDER BY created_at DESC LIMIT 1) AS last_message,
+                        (SELECT created_at FROM messages WHERE chat_id = c.id AND deleted = FALSE ORDER BY created_at DESC LIMIT 1) AS last_time
                 FROM chats c
                 JOIN users u1 ON c.user1_id = u1.id
                 JOIN users u2 ON c.user2_id = u2.id
@@ -153,7 +153,7 @@ def get_messages(chat_id):
                 if before_id:
                     cur.execute(
                         """
-                        SELECT m.id, m.text, m.created_at, m.reply_to_id,
+                        SELECT m.id, m.text, m.created_at, m.reply_to_id, m.edited, m.deleted,
                               u.username AS sender_username,
                               m.sender_id,
                               m.seen_by,
@@ -172,7 +172,7 @@ def get_messages(chat_id):
                 else:
                     cur.execute(
                         """
-                        SELECT m.id, m.text, m.created_at, m.reply_to_id,
+                        SELECT m.id, m.text, m.created_at, m.reply_to_id, m.edited, m.deleted,
                               u.username AS sender_username,
                               m.sender_id,
                               m.seen_by,
@@ -200,6 +200,8 @@ def get_messages(chat_id):
             "id": m["id"],
             "sender_id": m["sender_id"],
             "text": m["text"],
+            "edited": m["edited"],
+            "deleted": m["deleted"],
             "created_at": m["created_at"],
             "sender_username": m["sender_username"],
             "seen_by": m["seen_by"] or [],
@@ -253,3 +255,82 @@ def change_username():
         return jsonify({"error": "Username already taken"}), 409
     except RuntimeError:
         return jsonify({"error": "Database service unavailable"}), 503
+
+
+@chat_bp.route("/api/messages/<int:message_id>", methods=["PUT"])
+def edit_message(message_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.get_json()
+    new_text = data.get("text", "").strip()
+    if not new_text:
+        return jsonify({"error": "Text cannot be empty"}), 400
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM messages WHERE id = %s", (message_id,))
+                msg = cur.fetchone()
+                if not msg:
+                    return jsonify({"error": "Message not found"}), 404
+                if msg["sender_id"] != user_id:
+                    return jsonify({"error": "Not authorized"}), 403
+                if msg["deleted"]:
+                    return jsonify({"error": "Cannot edit deleted message"}), 400
+
+                cur.execute(
+                    """
+                    UPDATE messages
+                    SET text = %s, edited = TRUE
+                    WHERE id = %s
+                """,
+                    (new_text, message_id),
+                )
+
+        socketio.emit(
+            "message_edited",
+            {"message_id": message_id, "text": new_text, "chat_id": msg["chat_id"]},
+            room=f"chat_{msg['chat_id']}",
+        )
+
+        return jsonify({"success": True})
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/messages/<int:message_id>", methods=["DELETE"])
+def delete_message(message_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT * FROM messages WHERE id = %s", (message_id,))
+                msg = cur.fetchone()
+                if not msg:
+                    return jsonify({"error": "Message not found"}), 404
+                if msg["sender_id"] != user_id:
+                    return jsonify({"error": "Not authorized"}), 403
+
+                cur.execute(
+                    """
+                    UPDATE messages
+                    SET deleted = TRUE, text = ''
+                    WHERE id = %s
+                """,
+                    (message_id,),
+                )
+
+        socketio.emit(
+            "message_deleted",
+            {"message_id": message_id, "chat_id": msg["chat_id"]},
+            room=f"chat_{msg['chat_id']}",
+        )
+
+        return jsonify({"success": True})
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503

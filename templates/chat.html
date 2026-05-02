@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Chat</title>
   <link href="{{ url_for('static', filename='assets/styles/Vazirmatn-font-face.css') }}" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     :root {
       --bg: #17212b;
@@ -23,6 +24,11 @@
       --status-bar-bg: #212e3c;
       --shadow: 0 2px 10px rgba(0,0,0,0.3);
       --transition: 0.3s ease;
+      --game-invite-bg: rgba(43, 82, 120, 0.25);
+      --game-invite-border: #2b5278;
+      --game-invite-button-bg: #2b5278;
+      --game-invite-button-text: #fff;
+      --avatar-bg: #2b5278;
     }
     body.light-mode {
       --bg: #f5f5f5;
@@ -40,6 +46,13 @@
       --btn-hover-bg: #e8ecef;
       --status-bar-bg: #ffffff;
       --shadow: 0 2px 10px rgba(0,0,0,0.05);
+      --game-invite-bg: rgba(0, 123, 255, 0.08);
+      --game-invite-border: #2563eb;
+      --game-invite-button-bg: #2563eb;
+      --game-invite-button-text: #fff;
+      --avatar-bg: #547a9a;
+      --btn-color: #4a4a4a;
+      --btn-hover-bg: #e0e0e0;
     }
     html, body {
       height: 100%;
@@ -56,6 +69,7 @@
       align-items: stretch;
       transition: background var(--transition);
     }
+
     .app-container {
       width: 100%;
       max-width: 1000px;
@@ -67,6 +81,7 @@
       transition: background var(--transition);
       border-radius: 1.5rem;
     }
+
     .sidebar {
       width: 320px;
       background: var(--sidebar-bg);
@@ -75,6 +90,7 @@
       flex-direction: column;
       transition: all var(--transition);
     }
+
     .sidebar-header {
       padding: 1rem;
       border-bottom: 1px solid var(--border-color);
@@ -82,14 +98,17 @@
       align-items: center;
       justify-content: space-between;
     }
+
     .sidebar-header .title {
       font-size: 1.2rem;
       font-weight: 600;
       color: var(--text-primary);
     }
+
     .search-box {
       padding: 0.6rem 1rem;
     }
+
     .search-box input {
       width: 100%;
       padding: 0.6rem 1rem;
@@ -102,25 +121,30 @@
       transition: background var(--transition);
       font-family: inherit;
     }
+
     .search-results {
       max-height: 200px;
       overflow-y: auto;
       border-bottom: 1px solid var(--border-color);
       display: none;
     }
+
     .search-result-item {
       padding: 0.7rem 1rem;
       cursor: pointer;
       color: var(--text-primary);
       border-bottom: 1px solid var(--border-color);
     }
+
     .search-result-item:hover {
       background: var(--hover-bg);
     }
+
     .chat-list {
       flex: 1;
       overflow-y: auto;
     }
+
     .chat-item {
       display: flex;
       align-items: center;
@@ -129,27 +153,35 @@
       border-bottom: 1px solid var(--border-color);
       transition: background 0.2s;
     }
+
     .chat-item:hover, .chat-item.active {
       background: var(--hover-bg);
     }
+
     .chat-item .avatar {
-      width: 48px; height: 48px;
-      border-radius: 50%;
-      background: var(--bubble-sent);
-      display: flex; align-items: center; justify-content: center;
-      margin-right: 0.8rem;
-      color: #fff;
-      font-weight: 600;
-      font-size: 1.2rem;
+        width: 48px; height: 48px;
+        border-radius: 50%;
+        background: var(--avatar-bg);
+        display: flex; align-items: center; justify-content: center;
+        margin-right: 0.8rem;
+        color: #fff;
+        font-weight: 600;
+        font-size: 1.2rem;
+        flex-shrink: 0;
     }
+
     .chat-item .chat-info {
       flex: 1;
+      overflow: hidden;
+      min-width: 0;
     }
+
     .chat-item .chat-name {
       font-size: 1rem;
       font-weight: 600;
       color: var(--text-primary);
     }
+
     .chat-item .last-message {
       font-size: 0.8rem;
       color: var(--text-secondary);
@@ -157,6 +189,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
     .chat-item .chat-time {
       font-size: 0.7rem;
       color: var(--text-secondary);
@@ -170,28 +203,61 @@
       transition: background var(--transition);
       position: relative;
     }
+
     .chat-header {
-      padding: 0.8rem 1rem;
-      border-bottom: 1px solid var(--border-color);
-      background: var(--status-bar-bg);
-      color: var(--text-primary);
-      font-weight: 600;
-      font-size: 1.1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      flex-shrink: 0;
+        padding: 0.6rem 1rem;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--status-bar-bg);
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        flex-shrink: 0;
     }
+
+    .chat-header-info {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        flex: 1;
+        min-width: 0;
+    }
+
+    #chatHeader {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    #onlineStatus {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+    }
+
+    .header-spacer {
+        width: 40px;
+        flex-shrink: 0;
+    }
+
     .back-btn {
-      display: none;
-      background: none;
-      border: none;
-      color: var(--btn-color);
-      font-size: 1.5rem;
-      cursor: pointer;
-      padding: 0.2rem;
+        display: none;
+        background: none;
+        border: none;
+        color: var(--btn-color);
+        font-size: 1.3rem;
+        cursor: pointer;
+        padding: 0.3rem;
+        border-radius: 50%;
+        transition: background 0.2s;
+        line-height: 1;
     }
-    .back-btn:hover { color: #2b9cff; }
+    .back-btn:hover {
+        background: var(--hover-bg);
+    }
 
     .messages-container {
       flex: 1;
@@ -201,16 +267,42 @@
       flex-direction: column;
       gap: 0.5rem;
     }
+
     .message-row {
       display: flex;
       position: relative;
     }
+
     .message-row.sent {
       justify-content: flex-end;
     }
+
     .message-row.received {
       justify-content: flex-start;
     }
+
+    .message-meta {
+        display: block;
+        text-align: end;
+        margin-top: 4px;
+        direction: ltr;
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        line-height: 1;
+    }
+
+    .message-time {
+        display: inline;
+        white-space: nowrap;
+    }
+
+    .msg-ticks {
+        display: inline-flex;
+        align-items: center;
+        margin-left: 4px;
+        vertical-align: middle;
+    }
+
     .bubble {
       max-width: 70%;
       padding: 0.6rem 0.9rem;
@@ -225,17 +317,21 @@
       direction: auto;
       text-align: start;
     }
+
     .bubble:active {
       background: rgba(255,255,255,0.1);
     }
+
     .bubble.sent {
       background: var(--bubble-sent);
       border-bottom-right-radius: 0.3rem;
     }
+
     .bubble.received {
       background: var(--bubble-received);
       border-bottom-left-radius: 0.3rem;
     }
+
     .bubble.emoji-only {
       background: transparent !important;
       box-shadow: none;
@@ -243,15 +339,7 @@
       padding: 0.2rem;
       line-height: 1.2;
     }
-    .bubble .message-time {
-      font-size: 0.65rem;
-      color: var(--text-secondary);
-      float: right;
-      margin-left: 0.5rem;
-      margin-top: 0.2rem;
-      direction: ltr;
-      text-align: right;
-    }
+
     .no-chat-message {
       color: var(--text-secondary);
       text-align: center;
@@ -259,31 +347,105 @@
       font-size: 1rem;
     }
 
+    #messageContextMenu .context-item {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        padding: 0.5rem 1rem;
+        background: none;
+        border: none;
+        color: var(--text-primary);
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: background 0.15s;
+        font-family: inherit;
+    }
+
+    #messageContextMenu .context-item i {
+        width: 18px;
+        margin-right: 8px;
+        text-align: center;
+    }
+
+    #messageContextMenu .context-item:hover {
+        background: var(--hover-bg);
+    }
+
     .reply-preview {
-      background: var(--input-bg);
-      border-top: 1px solid var(--border-color);
-      padding: 0.5rem 1rem;
-      display: none;
-      align-items: center;
-      gap: 0.5rem;
-      color: var(--text-secondary);
-      font-size: 0.85rem;
-      flex-shrink: 0;
+        background: var(--status-bar-bg);
+        border-left: 4px solid #2b9cff;
+        border-radius: 0.6rem;
+        margin: 0.4rem 0.8rem;
+        padding: 0.5rem 0.8rem;
+        display: none;
+        align-items: center;
+        gap: 0.6rem;
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        flex-shrink: 0;
+        animation: slideDown 0.15s ease-out;
     }
+
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-5px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
     .reply-preview.active {
-      display: flex;
+        display: flex;
     }
+
+    .reply-preview .reply-icon {
+        color: #2b9cff;
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .reply-preview .reply-content {
+        flex: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+    }
+
+    .reply-preview .reply-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-secondary);
+    }
+
     .reply-preview .reply-text {
-      flex: 1;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 60%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.8rem;
+        color: var(--text-primary);
+        text-align: start;
     }
+
     .reply-preview .cancel-reply {
-      color: #ff4d4d;
-      cursor: pointer;
-      font-weight: bold;
+        background: none;
+        border: none;
+        color: var(--btn-color);
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background 0.2s, color 0.2s;
+        flex-shrink: 0;
+    }
+
+    .reply-preview .cancel-reply:hover {
+        background: var(--hover-bg);
+        color: #ff4d4d;
     }
 
     .reply-quote {
@@ -298,6 +460,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
     .reply-quote .reply-sender {
       font-weight: 600;
       color: #2b9cff;
@@ -305,41 +468,80 @@
     }
 
     .input-area {
-      padding: 0.8rem 1rem;
-      border-top: 1px solid var(--border-color);
-      background: var(--input-bg);
-      display: flex;
-      align-items: flex-end;
-      gap: 0.5rem;
-      flex-shrink: 0;
+        padding: 0.8rem 1rem;
+        border-top: 1px solid var(--border-color);
+        background: var(--input-bg);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
     }
+
     .input-area textarea {
-      flex: 1;
-      background: transparent;
-      border: none;
-      outline: none;
-      color: var(--text-primary);
-      font-size: 16px;
-      resize: none;
-      padding: 0.4rem 0;
-      font-family: inherit;
-      max-height: 100px;
-      direction: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      overflow-wrap: break-word;
+        flex: 1;
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        border-radius: 1rem;
+        outline: none;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+        resize: none;
+        padding: 0.6rem 0.8rem;
+        font-family: inherit;
+        max-height: 120px;
+        direction: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        transition: border-color 0.2s, box-shadow 0.2s;
     }
+
+    .input-area textarea:focus {
+        border-color: #2b9cff;
+        box-shadow: 0 0 0 2px rgba(43, 156, 255, 0.25);
+    }
+
     .input-area .send-chat-btn {
-      background: none;
-      border: none;
-      color: #2b9cff;
-      font-size: 1.5rem;
-      cursor: pointer;
-      padding: 0.3rem;
+        line-height: 0;
+        background: #2b9cff;
+        border: none;
+        color: #fff;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        font-size: 1.1rem;
+        cursor: pointer;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s, transform 0.15s;
+        flex-shrink: 0;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
+
+    .input-area .send-chat-btn svg {
+        display: block;
+    }
+
+    .input-area .send-chat-btn:hover {
+        background: #1a8ae0;
+    }
+
+    .input-area .send-chat-btn:active {
+        transform: scale(0.92);
+    }
+
     .input-area .send-chat-btn:disabled {
-      opacity: 0.4;
-      cursor: default;
+        opacity: 0.5;
+        cursor: default;
+        pointer-events: none;
+    }
+
+    .bubble a {
+        color: #2b9cff;
+        text-decoration: underline;
+        word-break: break-all;
     }
 
     .theme-toggle {
@@ -352,6 +554,7 @@
       display: flex; align-items: center; justify-content: center;
       border-radius: 50%;
     }
+
     .theme-toggle:hover { background: var(--hover-bg); }
 
     .error-toast {
@@ -375,17 +578,6 @@
         font-style: italic;
     }
 
-    .msg-ticks {
-        font-size: 0.65rem;
-        color: var(--text-secondary);
-        margin-left: 4px;
-        float: right;
-        direction: ltr;
-    }
-    .msg-ticks.seen {
-        color: #4fc3f7;
-    }
-
     @media (max-width: 700px) {
       .app-container {
         border-radius: 0;
@@ -407,18 +599,163 @@
         display: block;
       }
     }
+
+    .game-invite {
+      background: var(--game-invite-bg);
+      border: 1px solid var(--game-invite-border);
+      border-radius: 0.8rem;
+      padding: 0.4rem 0.8rem;
+      margin: 0.3rem 0;
+      max-width: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      font-size: 0.8rem;
+      color: var(--text-primary);
+    }
+
+    .game-invite .invite-text {
+      margin-bottom: 0.3rem;
+    }
+
+    .game-invite button {
+      background: var(--game-invite-button-bg);
+      color: var(--game-invite-button-text);
+      border: none;
+      padding: 0.3rem 0.8rem;
+      border-radius: 0.4rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-family: inherit;
+      transition: background 0.2s;
+      align-self: flex-start;
+    }
+
+    .game-invite button:hover {
+      opacity: 0.85;
+    }
+
+    #settingsDropdown .dropdown-item {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        padding: 0.6rem 1rem;
+        background: none;
+        border: none;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: background 0.15s;
+        font-family: inherit;
+    }
+
+    #settingsDropdown .dropdown-item i {
+        width: 20px;
+        margin-right: 8px;
+        text-align: center;
+    }
+
+    #settingsDropdown .dropdown-item:hover {
+        background: var(--hover-bg);
+    }
+
+    .edited-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        margin-left: 4px;
+        font-style: italic;
+    }
+
+    .edit-box {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        width: 100%;
+    }
+
+    .edit-box textarea {
+        width: 100%;
+        background: var(--input-bg);
+        border: 1px solid var(--input-border);
+        border-radius: 0.5rem;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        padding: 0.4rem 0.6rem;
+        font-family: inherit;
+        resize: none;
+        outline: none;
+        text-align: start;
+    }
+
+    .edit-box textarea:focus {
+        border-color: #2b9cff;
+    }
+
+    .edit-actions {
+        display: flex;
+        gap: 0.4rem;
+        justify-content: flex-end;
+    }
+
+    .edit-actions button {
+        background: var(--primary-btn-bg, #2b5278);
+        border: none;
+        color: #fff;
+        padding: 0.25rem 0.8rem;
+        border-radius: 0.4rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: opacity 0.2s;
+    }
+
+    .edit-actions button.cancel {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+    }
+
+    .edit-actions button:hover {
+        opacity: 0.8;
+    }
+
+    .header-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--avatar-bg);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 1rem;
+        flex-shrink: 0;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
   </style>
 </head>
 <body>
   <div class="app-container">
     <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <span class="title">Chats</span>
-        <div style="display:flex;align-items:center;gap:0.3rem;">
-          <button id="changeUsernameSidebarBtn" class="theme-toggle" style="font-size:1rem;" title="Change Username">✏️</button>
-          <button id="changePasswordSidebarBtn" class="theme-toggle" style="font-size:1rem;" title="Change Password">🔑</button>
-          <button class="theme-toggle" onclick="toggleTheme()">◑</button>
-        </div>
+          <span class="title">Chats</span>
+          <div style="display:flex;align-items:center;gap:0.3rem; position: relative;">
+              <button id="settingsMenuBtn" class="theme-toggle" style="font-size:1.2rem;" title="Settings">
+                  <i class="fa-solid fa-gear"></i>
+              </button>
+              <div id="settingsDropdown" style="display:none; position:absolute; top:100%; right:0; background:var(--status-bar-bg); border:1px solid var(--border-color); border-radius:0.8rem; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:100; min-width:180px; padding:0.4rem 0;">
+                  <button id="changeUsernameSidebarBtn" class="dropdown-item">
+                      <i class="fa-solid fa-pen"></i> Change Username
+                  </button>
+                  <button id="changePasswordSidebarBtn" class="dropdown-item">
+                      <i class="fa-solid fa-key"></i> Change Password
+                  </button>
+                  <div style="height:1px; background:var(--border-color); margin:0.3rem 0;"></div>
+                  <button class="dropdown-item" onclick="toggleTheme()">
+                      <i class="fa-solid fa-circle-half-stroke"></i> Switch Theme
+                  </button>
+              </div>
+          </div>
       </div>
       <div class="search-box">
         <input type="text" id="searchUserInput" placeholder="Search user..." oninput="searchUsers()">
@@ -429,21 +766,39 @@
 
     <div class="main-chat" id="mainChat">
       <div class="chat-header">
-        <button id="playDouzBtn" style="background:none;border:none;font-size:1.2rem;cursor:pointer;display:none;" title="Play Tic-Tac-Toe">🎮</button>
-        <button class="back-btn" onclick="backToChats()">←</button>
-        <span id="chatHeader"></span>
-        <span id="onlineStatus" style="margin-left:auto; font-size:0.8rem; color:var(--text-secondary);"></span>
-      </div>
-      <div class="reply-preview" id="replyPreview">
-        <span class="reply-text" id="replyText"></span>
-        <span class="cancel-reply" onclick="cancelReply()">✕</span>
+          <button class="back-btn" onclick="backToChats()">
+              <i class="fa-solid fa-arrow-left"></i>
+          </button>
+          <div class="header-avatar" id="headerAvatar"></div>
+          <div class="chat-header-info">
+              <span id="chatHeader"></span>
+              <span id="onlineStatus"></span>
+          </div>
+          <div class="header-spacer"></div>
       </div>
       <div class="messages-container" id="messagesContainer">
         <div class="no-chat-message">Select a chat to start messaging</div>
       </div>
+      <div class="reply-preview" id="replyPreview">
+          <i class="fa-solid fa-reply reply-icon"></i>
+          <div class="reply-content">
+              <span class="reply-label">Replying to</span>
+              <span class="reply-text" id="replyText" dir="auto"></span>
+          </div>
+          <button class="cancel-reply" onclick="cancelReply()" title="Cancel reply">
+              <i class="fa-solid fa-xmark"></i>
+          </button>
+      </div>
       <div class="input-area" id="inputArea" style="display:none;">
+        <button id="playDouzBtn" class="send-chat-btn" style="background:#6c5ce7;" title="Play Tic-Tac-Toe">
+            <i class="fa-solid fa-gamepad"></i>
+        </button>
         <textarea id="chatInput" placeholder="Message" dir="auto" rows="1" oninput="autoResize(this)"></textarea>
-        <button class="send-chat-btn" id="sendChatBtn" onclick="sendChatMessage()">➤</button>
+        <button class="send-chat-btn" id="sendChatBtn" onclick="sendChatMessage()" title="Send message">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19V5M5 12l7-7 7 7"/>
+            </svg>
+        </button>
       </div>
     </div>
   </div>
@@ -465,6 +820,30 @@
       </div>
       <div id="usernameMsg" style="margin-top:1rem;font-size:0.9rem;"></div>
     </div>
+  </div>
+
+  <div id="messageContextMenu" style="display:none; position:fixed; background:var(--status-bar-bg); border:1px solid var(--border-color); border-radius:0.6rem; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:150; min-width:120px; padding:0.3rem 0;">
+      <button class="context-item" data-action="reply">
+          <i class="fa-solid fa-reply"></i> Reply
+      </button>
+      <button class="context-item" data-action="copy">
+          <i class="fa-solid fa-copy"></i> Copy
+      </button>
+      <button class="context-item" data-action="edit">
+          <i class="fa-solid fa-pen-to-square"></i> Edit
+      </button>
+      <button class="context-item" data-action="delete">
+          <i class="fa-solid fa-trash"></i> Delete
+      </button>
+  </div>
+  <div id="deleteConfirmModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:200; justify-content:center; align-items:center;">
+      <div style="background:var(--status-bar-bg); border:1px solid var(--border-color); border-radius:0.8rem; padding:1.5rem; text-align:center; max-width:280px; width:90%;">
+          <p style="color:var(--text-primary); margin-bottom:1rem; font-size:0.9rem;">Are you sure you want to delete this message?</p>
+          <div style="display:flex; gap:0.5rem; justify-content:center;">
+              <button id="confirmDeleteBtn" style="background:#ff4d4d; color:#fff; border:none; padding:0.4rem 1.2rem; border-radius:0.4rem; cursor:pointer; font-size:0.85rem;">Delete</button>
+              <button id="cancelDeleteBtn" style="background:transparent; border:1px solid var(--border-color); color:var(--text-secondary); padding:0.4rem 1.2rem; border-radius:0.4rem; cursor:pointer; font-size:0.85rem;">Cancel</button>
+          </div>
+      </div>
   </div>
   <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
   <script>
@@ -497,6 +876,188 @@
     let typingTimeout;
     let typingIndicator = document.getElementById('typingIndicator');
     const playDouzBtn = document.getElementById('playDouzBtn');
+
+    document.getElementById('messageContextMenu').addEventListener('click', async (e) => {
+        const action = e.target.closest('.context-item')?.dataset.action;
+        const msg = document.getElementById('messageContextMenu').currentMessage;
+        if (!msg || !action) return;
+
+        const menu = document.getElementById('messageContextMenu');
+        menu.style.display = 'none';
+
+        if (action === 'copy') {
+            navigator.clipboard.writeText(msg.text || '');
+            showToast('Copied!', true);
+        }
+        else if (action === 'reply') {
+            replyToMessage = msg;
+            const previewText = msg.text.length > 40 ? msg.text.substring(0, 40) + '...' : msg.text;
+            document.getElementById('replyText').textContent = '↩ ' + previewText;
+            document.getElementById('replyPreview').classList.add('active');
+            document.getElementById('chatInput').focus();
+        }
+        else if (action === 'edit') {
+            if (msg.sender_id !== currentUserId) {
+                showToast('You can only edit your own messages');
+                return;
+            }
+
+            const row = document.querySelector(`.message-row[data-message-id="${msg.id}"]`);
+            if (!row) return;
+            const bubble = row.querySelector('.bubble');
+            if (!bubble) return;
+
+            const originalContent = bubble.innerHTML;
+
+            const editBox = document.createElement('div');
+            editBox.className = 'edit-box';
+            const textarea = document.createElement('textarea');
+            textarea.value = msg.text;
+            textarea.setAttribute('dir', 'auto');
+            textarea.style.height = '60px';
+            const actions = document.createElement('div');
+            actions.className = 'edit-actions';
+
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Save';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.className = 'cancel';
+
+            actions.appendChild(saveBtn);
+            actions.appendChild(cancelBtn);
+            editBox.appendChild(textarea);
+            editBox.appendChild(actions);
+
+            bubble.innerHTML = '';
+            bubble.appendChild(editBox);
+
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+            const finishEdit = () => {
+                bubble.innerHTML = originalContent;
+            };
+
+            cancelBtn.addEventListener('click', finishEdit);
+
+            saveBtn.addEventListener('click', async () => {
+                const newText = textarea.value.trim();
+                if (!newText || newText === msg.text) {
+                    finishEdit();
+                    return;
+                }
+                try {
+                    const resp = await fetch(`/api/messages/${msg.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: newText })
+                    });
+                    if (resp.ok) {
+                        finishEdit();
+
+                        const bubbleEl = document.querySelector(`[data-message-id="${msg.id}"] .bubble`);
+                        if (bubbleEl) {
+                            const textNodes = Array.from(bubbleEl.childNodes).filter(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== '');
+                            if (textNodes.length > 0) {
+                                textNodes[0].textContent = newText;
+                            }
+                            let editedSpan = bubbleEl.querySelector('.edited-label');
+                            if (!editedSpan) {
+                                editedSpan = document.createElement('span');
+                                editedSpan.className = 'edited-label';
+                                editedSpan.textContent = ' (edited)';
+                                bubbleEl.appendChild(editedSpan);
+                            }
+                        }
+                    } else {
+                        showToast('Failed to edit message');
+                    }
+                } catch (e) {
+                    showToast('Connection error');
+                    finishEdit();
+                }
+            });
+        }
+        else if (action === 'delete') {
+            if (msg.sender_id !== currentUserId) {
+                showToast('You can only delete your own messages');
+                return;
+            }
+
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.style.display = 'flex';
+
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            const cancelBtn = document.getElementById('cancelDeleteBtn');
+
+            const cleanup = () => {
+                modal.style.display = 'none';
+                confirmBtn.replaceWith(confirmBtn.cloneNode(true));
+                cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+            };
+
+            document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+                cleanup();
+                try {
+                    const resp = await fetch(`/api/messages/${msg.id}`, { method: 'DELETE' });
+                    if (!resp.ok) showToast('Failed to delete message');
+                } catch (e) {
+                    showToast('Connection error');
+                }
+            }, { once: true });
+
+            document.getElementById('cancelDeleteBtn').addEventListener('click', cleanup, { once: true });
+        }
+    });
+
+
+    socket.on('message_edited', (data) => {
+        if (data.chat_id === activeChatId) {
+            const msgElements = document.querySelectorAll(`[data-message-id="${data.message_id}"]`);
+            msgElements.forEach(el => {
+                const bubble = el.querySelector('.bubble');
+                if (!bubble) return;
+
+                const textNodes = Array.from(bubble.childNodes).filter(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== '');
+                if (textNodes.length > 0) {
+                    textNodes[0].textContent = data.text;
+                } else {
+                    const textSpan = document.createElement('span');
+                    textSpan.textContent = data.text;
+                    bubble.insertBefore(textSpan, bubble.firstChild);
+                }
+
+                let editedSpan = bubble.querySelector('.edited-label');
+                if (!editedSpan) {
+                    editedSpan = document.createElement('span');
+                    editedSpan.className = 'edited-label';
+                    editedSpan.textContent = ' (edited)';
+                    bubble.appendChild(editedSpan);
+                }
+            });
+        }
+    });
+
+    socket.on('message_deleted', (data) => {
+        if (data.chat_id === activeChatId) {
+            document.querySelectorAll(`[data-message-id="${data.message_id}"]`).forEach(el => {
+                const bubble = el.querySelector('.bubble');
+                if (bubble) renderDeletedBubble(bubble);
+            });
+        }
+    });
+
+    function renderDeletedBubble(bubble) {
+        bubble.innerHTML = `<div style="display:flex;align-items:center;gap:0.4rem;color:var(--text-secondary);font-size:0.85rem;opacity:0.7;">
+            <i class="fa-solid fa-trash" style="font-size:0.8rem;"></i>
+            <em>This message was deleted</em>
+        </div>`;
+        bubble.style.background = 'transparent';
+        bubble.style.boxShadow = 'none';
+        bubble.style.cursor = 'default';
+        bubble.classList.remove('sent', 'received');
+    }
 
     socket.on('user_typing', (data) => {
         if (!typingIndicator) {
@@ -547,8 +1108,8 @@
     socket.on('message_seen', (data) => {
         if (data.chat_id === activeChatId) {
             document.querySelectorAll('.message-row.sent .msg-ticks').forEach(tick => {
-                tick.textContent = '✓✓';
-                tick.classList.add('seen');
+                tick.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4fc3f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4fc3f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:-10px;"><polyline points="20 6 9 17 4 12"/></svg>`;
             });
         }
     });
@@ -559,12 +1120,13 @@
         }
     });
 
-    function showToast(message) {
+    function showToast(message, isSuccess = false) {
         const toast = document.createElement('div');
         toast.className = 'error-toast';
+        toast.style.background = isSuccess ? '#34d399' : '#ff4d4d';
         toast.textContent = message;
         document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
+        setTimeout(() => toast.remove(), 2000);
     }
 
     fetch('/api/whoami').then(r => r.json()).then(d => {
@@ -663,25 +1225,19 @@
         const el = document.getElementById('onlineStatus');
         if (status.online) {
             el.innerHTML = '<span style="color:#34d399;">●</span> online';
-            return;
-        }
-
-        if (!status.last_seen) {
+        } else if (status.last_seen) {
+            const last = new Date(status.last_seen);
+            const now = new Date();
+            const diff = Math.floor((now - last) / 1000);
+            let text;
+            if (diff < 60) text = 'last seen just now';
+            else if (diff < 3600) text = `last seen ${Math.floor(diff/60)}m ago`;
+            else if (diff < 86400) text = `last seen ${Math.floor(diff/3600)}h ago`;
+            else text = 'last seen ' + last.toLocaleDateString();
+            el.textContent = text;
+        } else {
             el.textContent = '';
-            return;
         }
-
-        const last = new Date(status.last_seen);
-        const now = new Date();
-        const diff = Math.floor((now - last) / 1000);
-
-        let text;
-        if (diff < 60) text = 'last seen just now';
-        else if (diff < 3600) text = `last seen ${Math.floor(diff/60)} minutes ago`;
-        else if (diff < 86400) text = `last seen ${Math.floor(diff/3600)} hours ago`;
-        else text = 'last seen ' + last.toLocaleDateString();
-
-        el.innerHTML = '<span style="color:#888;">●</span> ' + text;
     }
 
     function openChat(chatId) {
@@ -692,7 +1248,6 @@
         const mainChat = document.getElementById('mainChat');
         mainChat.classList.add('active');
         document.getElementById('inputArea').style.display = 'flex';
-        playDouzBtn.style.display = 'inline-block';
         const msgContainer = document.getElementById('messagesContainer');
         msgContainer.innerHTML = '';
         oldestMessageId = null;
@@ -701,6 +1256,9 @@
             const chat = chats.find(c => c.id == chatId);
             if (chat) {
                 document.getElementById('chatHeader').textContent = chat.other_username;
+                document.getElementById('chatHeader').textContent = chat.other_username;
+                document.getElementById('headerAvatar').textContent = chat.other_username[0].toUpperCase();
+
                 otherUserId = chat.other_user_id;
 
                 fetch('/api/user_status/' + otherUserId)
@@ -730,10 +1288,17 @@
     function createMessageElement(msg, isSent) {
         const row = document.createElement('div');
         row.className = 'message-row ' + (isSent ? 'sent' : 'received');
+        row.dataset.messageId = msg.id;
 
         const bubble = document.createElement('div');
         bubble.className = 'bubble ' + (isSent ? 'sent' : 'received');
         bubble.setAttribute('dir', 'auto');
+
+        if (msg.deleted) {
+            renderDeletedBubble(bubble);
+            row.appendChild(bubble);
+            return row;
+        }
 
         if (isEmojiOnly(msg.text)) {
             bubble.classList.add('emoji-only');
@@ -760,20 +1325,96 @@
             bubble.appendChild(quoteDiv);
         }
 
-        const textNode = document.createTextNode(msg.text || '');
-        bubble.appendChild(textNode);
+        if (msg.text && msg.text.startsWith('GAME_INVITE:')) {
+            try {
+                const inviteData = JSON.parse(msg.text.slice(12));
+                const inviteDiv = document.createElement('div');
+                inviteDiv.className = 'game-invite';
+
+                const textSpan = document.createElement('span');
+                textSpan.className = 'invite-text';
+                textSpan.textContent = `🎮 ${escapeHtml(inviteData.sender)} invited you to play!`;
+                inviteDiv.appendChild(textSpan);
+
+                const playBtn = document.createElement('button');
+                playBtn.textContent = 'Play';
+                playBtn.onclick = () => window.open(`/douz/?room=${encodeURIComponent(inviteData.room)}`, '_blank');
+                inviteDiv.appendChild(playBtn);
+
+                bubble.appendChild(inviteDiv);
+            } catch (err) {
+                const safeText = escapeHtml(msg.text || '');
+                const withBreaks = safeText.replace(/\n/g, '<br>');
+                const withLinks = withBreaks.replace(
+                    /(https?:\/\/[^\s<]+)/g,
+                    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+                );
+                const textSpan = document.createElement('span');
+                textSpan.innerHTML = withLinks;
+                bubble.appendChild(textSpan);
+            }
+        } else {
+            const safeText = escapeHtml(msg.text || '');
+            const withBreaks = safeText.replace(/\n/g, '<br>');
+            const withLinks = withBreaks.replace(
+                /(https?:\/\/[^\s<]+)/g,
+                '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+            );
+            const textSpan = document.createElement('span');
+            textSpan.innerHTML = withLinks;
+            bubble.appendChild(textSpan);
+        }
 
         const time = document.createElement('span');
         time.className = 'message-time';
         time.textContent = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        bubble.appendChild(time);
 
-        bubble.addEventListener('click', () => {
-            replyToMessage = msg;
-            const previewText = msg.text.length > 40 ? msg.text.substring(0, 40) + '...' : msg.text;
-            document.getElementById('replyText').textContent = '↩ ' + previewText;
-            document.getElementById('replyPreview').classList.add('active');
-            document.getElementById('chatInput').focus();
+        const meta = document.createElement('span');
+        meta.className = 'message-meta';
+        meta.appendChild(time);
+
+        bubble.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const menu = document.getElementById('messageContextMenu');
+            menu.style.display = 'none';
+
+            const rect = bubble.getBoundingClientRect();
+            const menuHeight = menu.offsetHeight || 150;
+            const viewportHeight = window.innerHeight;
+
+            if (rect.bottom + menuHeight + 10 > viewportHeight) {
+                menu.style.top = (rect.top - menuHeight - 5) + 'px';
+            } else {
+                menu.style.top = (rect.bottom + 5) + 'px';
+            }
+
+            const menuWidth = menu.offsetWidth || 130;
+            if (rect.left + menuWidth > window.innerWidth) {
+                menu.style.left = (window.innerWidth - menuWidth - 10) + 'px';
+            } else {
+                menu.style.left = rect.left + 'px';
+            }
+
+            menu.currentMessage = msg;
+            const editBtn = menu.querySelector('[data-action="edit"]');
+            const deleteBtn = menu.querySelector('[data-action="delete"]');
+            if (msg.sender_id === currentUserId) {
+                if (editBtn) editBtn.style.display = 'flex';
+                if (deleteBtn) deleteBtn.style.display = 'flex';
+            } else {
+                if (editBtn) editBtn.style.display = 'none';
+                if (deleteBtn) editBtn.style.display = 'none';
+            }
+
+            menu.style.display = 'block';
+
+            const closeMenu = (ev) => {
+                if (!menu.contains(ev.target) && ev.target !== bubble) {
+                    menu.style.display = 'none';
+                    document.removeEventListener('click', closeMenu);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', closeMenu), 10);
         });
 
         if (isSent) {
@@ -781,9 +1422,25 @@
             ticks.className = 'msg-ticks';
             const seenBy = msg.seen_by || [];
             const seen = seenBy.includes(otherUserId);
-            ticks.textContent = seen ? '✓✓' : '✓';
-            if (seen) ticks.classList.add('seen');
-            bubble.appendChild(ticks);
+            ticks.innerHTML = seen
+                ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4fc3f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4fc3f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:-10px;"><polyline points="20 6 9 17 4 12"/></svg>`
+                : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:#aaa;"><polyline points="20 6 9 17 4 12"/></svg>`;
+            meta.appendChild(ticks);
+        }
+
+        bubble.appendChild(meta);
+
+        if (msg.deleted) {
+            renderDeletedBubble(bubble);
+            return row;
+        }
+
+        if (msg.edited) {
+            const editedSpan = document.createElement('span');
+            editedSpan.className = 'edited-label';
+            editedSpan.textContent = ' (edited)';
+            bubble.appendChild(editedSpan);
         }
 
         row.appendChild(bubble);
@@ -827,7 +1484,6 @@
     function backToChats() {
       document.getElementById('mainChat').classList.remove('active');
       document.getElementById('sidebar').classList.remove('hidden');
-      playDouzBtn.style.display = 'none';
       activeChatId = null;
       cancelReply();
     }
@@ -896,6 +1552,7 @@
         usernameMsg.style.color = '#ff4d4d';
       }
     });
+
     const messagesContainerEl = document.getElementById('messagesContainer');
     messagesContainerEl.addEventListener('scroll', function() {
         if (isLoadingMore) return;
@@ -932,21 +1589,37 @@
         }
     });
     playDouzBtn.addEventListener('click', async () => {
+        if (!activeChatId) {
+            showToast('No active chat selected');
+            return;
+        }
         try {
             const resp = await fetch('/api/create_douz_room', { method: 'POST' });
             const data = await resp.json();
             if (data.room) {
-                const douzLink = `${window.location.origin}/douz/?room=${data.room}`;
                 socket.emit('send_chat_message', {
                     chat_id: activeChatId,
-                    text: `🎮 Let's play Tic-Tac-Toe! ${douzLink}`,
+                    text: `GAME_INVITE:${JSON.stringify({ room: data.room, sender: currentUsername })}`
                 });
-                window.open(douzLink, '_blank');
             } else {
                 showToast('Failed to create game room');
             }
         } catch (e) {
             showToast('Failed to create game room');
+        }
+    });
+
+    const settingsMenuBtn = document.getElementById('settingsMenuBtn');
+    const settingsDropdown = document.getElementById('settingsDropdown');
+
+    settingsMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        settingsDropdown.style.display = (settingsDropdown.style.display === 'block') ? 'none' : 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!settingsDropdown.contains(e.target) && e.target !== settingsMenuBtn) {
+            settingsDropdown.style.display = 'none';
         }
     });
   </script>

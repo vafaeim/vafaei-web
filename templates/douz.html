@@ -150,6 +150,19 @@
       width: 120px;
     }
     .hidden { display: none; }
+    .error-toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #ff4d4d;
+        color: #fff;
+        padding: 0.6rem 1.2rem;
+        border-radius: 0.5rem;
+        z-index: 999;
+        font-size: 0.9rem;
+        white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -194,6 +207,7 @@
       <button id="replayBtn" class="hidden">replay</button>
     </div>
   </div>
+  <div id="toast" class="error-toast" style="display:none;"></div>
   <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
   <script>
     const body = document.body;
@@ -315,10 +329,13 @@
         if (socket.connected) {
             socket.emit('join_room', { room: prejoinRoom });
         }
+    } else {
+        lobby.classList.remove('hidden');
+        gameArea.classList.add('hidden');
     }
 
     socket.on('error', (data) => {
-        alert(data.msg);
+        showToast(data.msg);
         if (data.msg === 'Room not found' || data.msg === 'Room full') {
             lobby.classList.remove('hidden');
             gameArea.classList.add('hidden');
@@ -351,6 +368,13 @@
       myWinsSpan.textContent = scores.my_wins;
       oppWinsSpan.textContent = scores.opponent_wins;
       drawsSpan.textContent = scores.draws;
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3000);
     }
   </script>
 </body>

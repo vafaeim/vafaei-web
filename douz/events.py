@@ -79,29 +79,45 @@ def handle_join_room(data):
     if room not in dous_rooms:
         emit("error", {"msg": "Room not found"})
         return
+
     room_data = dous_rooms[room]
     if len(room_data["players"]) >= 2:
         emit("error", {"msg": "Room full"})
         return
+
+    if len(room_data["players"]) == 0:
+        symbol = "X"
+    else:
+        symbol = "O"
+
     room_data["players"].append(request.sid)
-    room_data["symbols"]["O"] = request.sid
+    room_data["symbols"][symbol] = request.sid
     room_data["scores"]["wins"][request.sid] = 0
     room_data["replay_votes"].clear()
     join_room(room)
     emit("room_joined", {"room": room})
 
-    my_scores = {"my_wins": 0, "opponent_wins": 0, "draws": 0}
-    opp_scores = dict(my_scores)
-    emit(
-        "game_start",
-        {"symbol": "O", "board": room_data["board"], "scores": my_scores},
-        to=request.sid,
-    )
-    emit(
-        "game_start",
-        {"symbol": "X", "board": room_data["board"], "scores": opp_scores},
-        to=room_data["players"][0],
-    )
+    if len(room_data["players"]) == 2:
+        player_x = room_data["symbols"]["X"]
+        player_o = room_data["symbols"]["O"]
+        emit(
+            "game_start",
+            {
+                "symbol": "X",
+                "board": room_data["board"],
+                "scores": {"my_wins": 0, "opponent_wins": 0, "draws": 0},
+            },
+            to=player_x,
+        )
+        emit(
+            "game_start",
+            {
+                "symbol": "O",
+                "board": room_data["board"],
+                "scores": {"my_wins": 0, "opponent_wins": 0, "draws": 0},
+            },
+            to=player_o,
+        )
 
 
 @socketio.on("make_move")

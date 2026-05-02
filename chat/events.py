@@ -3,7 +3,7 @@ from flask import session
 from extensions import socketio, database
 import psycopg2.extras
 from datetime import datetime
-from flask_socketio import join_room
+from flask_socketio import join_room, emit
 from database import update_last_seen
 
 online_users = set()

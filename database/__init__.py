@@ -81,7 +81,12 @@ def init_db():
                 cur.execute(
                     "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP"
                 )
-
+                cur.execute(
+                    "ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited BOOLEAN DEFAULT FALSE"
+                )
+                cur.execute(
+                    "ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE"
+                )
         print("INFO: Database initialized successfully.")
     except RuntimeError:
         print("WARNING: Could not initialize database – pool not available.")

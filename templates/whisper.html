@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>whisper</title>
+  <style>
+    :root {
+      --bg: #17212b;
+      --chat-bg: #0e1621;
+      --bubble-sent: #2b5278;
+      --text-primary: #fff;
+      --text-secondary: #aab2bb;
+      --input-bg: #212e3c;
+      --input-border: #2b3a4a;
+      --btn-color: #8ea2b8;
+      --btn-hover-bg: #2b5278;
+      --status-bar-bg: #212e3c;
+      --shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    body.light-mode {
+      --bg: #f5f5f5;
+      --chat-bg: #ffffff;
+      --bubble-sent: #e3ffd8;
+      --text-primary: #000;
+      --text-secondary: #707579;
+      --input-bg: #fff;
+      --input-border: #d3d9de;
+      --btn-color: #707579;
+      --btn-hover-bg: #e8ecef;
+      --status-bar-bg: #f5f5f5;
+      --shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.4s;
+    }
+    .phone-frame {
+      width: 100%;
+      max-width: 400px;
+      height: 85vh;
+      max-height: 700px;
+      background: var(--chat-bg);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+    .status-bar {
+      background: var(--status-bar-bg);
+      padding: 0.8rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--input-border);
+    }
+    .status-bar .title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: 0.5px;
+    }
+    .theme-toggle {
+      background: none;
+      border: none;
+      color: var(--btn-color);
+      font-size: 1.3rem;
+      cursor: pointer;
+      width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+    }
+    .theme-toggle:hover { background: var(--btn-hover-bg); }
+    .messages {
+      flex: 1;
+      padding: 1rem 0.8rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .message {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .bubble {
+      max-width: 80%;
+      padding: 0.6rem 0.9rem;
+      border-radius: 18px 4px 18px 18px;
+      background: var(--bubble-sent);
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      word-wrap: break-word;
+      position: relative;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    .bubble.emoji-only {
+      font-size: 2.5rem;
+      background: transparent;
+      box-shadow: none;
+      padding: 0.2rem;
+    }
+    .bubble .time {
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      float: right;
+      margin-left: 0.5rem;
+      margin-top: 0.3rem;
+    }
+    .input-bar {
+      background: var(--input-bg);
+      padding: 0.6rem 0.8rem;
+      border-top: 1px solid var(--input-border);
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+    }
+    .attach-btn, .voice-btn, .emoji-toggle-btn {
+      background: none;
+      border: none;
+      color: var(--btn-color);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.3rem;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+    .attach-btn:hover, .voice-btn:hover, .emoji-toggle-btn:hover { color: #2b9cff; }
+    .voice-btn.recording {
+      color: #ff4d4d;
+    }
+    .text-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 16px;
+      resize: none;
+      max-height: 100px;
+      padding: 0.4rem 0;
+      font-family: inherit;
+    }
+    .send-btn {
+      background: none;
+      border: none;
+      color: #2b9cff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.3rem;
+      line-height: 1;
+      display: none;
+      position: relative;
+    }
+    .send-btn.visible { display: block; }
+    .send-btn:disabled { opacity: 0.5; cursor: default; }
+    .send-spinner {
+      display: none;
+      width: 20px; height: 20px;
+      border: 2px solid rgba(43,156,255,0.3);
+      border-top: 2px solid #2b9cff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+    .emoji-panel {
+      display: none;
+      background: var(--input-bg);
+      border-top: 1px solid var(--input-border);
+      padding: 0.5rem 0.3rem;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .emoji-panel.open { display: flex; }
+    .emoji-panel .emoji-btn {
+      background: none;
+      border: none;
+      font-size: 1.6rem;
+      cursor: pointer;
+      padding: 0.3rem;
+    }
+    .preview-area {
+      padding: 0.3rem 0.8rem;
+      background: var(--input-bg);
+      border-top: 1px solid var(--input-border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+    .preview-area .remove-preview {
+      color: #ff4d4d;
+      cursor: pointer;
+    }
+    #photoInput { display: none; }
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--input-border); border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="phone-frame">
+    <div class="status-bar">
+      <button class="theme-toggle" onclick="toggleTheme()" title="switch theme">◑</button>
+      <span class="title">whisper</span>
+      <div style="width:34px;"></div>
+    </div>
+
+    <div class="messages" id="messagesContainer"></div>
+
+    <div class="preview-area" id="previewArea" style="display:none;">
+      <span id="previewText"></span>
+      <span class="remove-preview" onclick="removeAttachment()">✕</span>
+    </div>
+
+    <div class="emoji-panel" id="emojiPanel">
+      <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
+      <button class="emoji-btn" onclick="sendEmoji('❤️')">❤️</button>
+      <button class="emoji-btn" onclick="sendEmoji('😂')">😂</button>
+      <button class="emoji-btn" onclick="sendEmoji('😢')">😢</button>
+      <button class="emoji-btn" onclick="sendEmoji('😡')">😡</button>
+      <button class="emoji-btn" onclick="sendEmoji('👋')">👋</button>
+    </div>
+
+    <div class="input-bar">
+      <button class="emoji-toggle-btn" id="emojiToggleBtn" onclick="toggleEmojiPanel()">😊</button>
+      <label for="photoInput" class="attach-btn">📎</label>
+      <input type="file" id="photoInput" accept="image/*" onchange="handlePhotoSelect(this)">
+      <button class="voice-btn" id="voiceBtn" onclick="toggleRecording()">🎤</button>
+      <textarea class="text-input" id="messageInput" placeholder="Message" dir="auto" rows="1" oninput="toggleSendButton()"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+        <span class="send-text">➤</span>
+        <span class="send-spinner" id="sendSpinner"></span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const body = document.body;
+    const themeToggleBtn = document.querySelector('.theme-toggle');
+    function setTheme(isLight) {
+      if (isLight) { body.classList.add('light-mode'); themeToggleBtn.textContent = '◐'; }
+      else { body.classList.remove('light-mode'); themeToggleBtn.textContent = '◑'; }
+      localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    }
+    function toggleTheme() { setTheme(!body.classList.contains('light-mode')); }
+    (localStorage.getItem('theme') === 'light') ? setTheme(true) : setTheme(false);
+
+    const messagesContainer = document.getElementById('messagesContainer');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendBtn');
+    const sendText = document.querySelector('.send-text');
+    const sendSpinner = document.getElementById('sendSpinner');
+    const photoInput = document.getElementById('photoInput');
+    const voiceBtn = document.getElementById('voiceBtn');
+    const previewArea = document.getElementById('previewArea');
+    const previewText = document.getElementById('previewText');
+    const emojiPanel = document.getElementById('emojiPanel');
+
+    let selectedFile = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let recording = false;
+    let isSending = false;
+
+    function addMessage(text, isEmojiOnly = false) {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = 'message';
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble' + (isEmojiOnly ? ' emoji-only' : '');
+      bubble.textContent = text;
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'time';
+      const now = new Date();
+      timeSpan.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      bubble.appendChild(timeSpan);
+      msgDiv.appendChild(bubble);
+      messagesContainer.appendChild(msgDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function toggleSendButton() {
+      if (messageInput.value.trim() || selectedFile) {
+        sendButton.classList.add('visible');
+      } else {
+        sendButton.classList.remove('visible');
+      }
+    }
+
+    function toggleEmojiPanel() {
+      emojiPanel.classList.toggle('open');
+    }
+
+    function sendEmoji(emoji) {
+      addMessage(emoji, true);
+      sendToServer({ text: emoji });
+      emojiPanel.classList.remove('open');
+    }
+
+    function setSendingState(sending) {
+      isSending = sending;
+      if (sending) {
+        sendButton.disabled = true;
+        sendText.style.display = 'none';
+        sendSpinner.style.display = 'inline-block';
+      } else {
+        sendButton.disabled = false;
+        sendText.style.display = 'inline';
+        sendSpinner.style.display = 'none';
+      }
+    }
+
+    function handlePhotoSelect(input) {
+      if (input.files.length > 0) {
+        selectedFile = input.files[0];
+        previewText.textContent = '📷 ' + selectedFile.name;
+        previewArea.style.display = 'flex';
+        toggleSendButton();
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+      }
+    }
+
+    function removeAttachment() {
+      selectedFile = null;
+      photoInput.value = '';
+      previewArea.style.display = 'none';
+      toggleSendButton();
+    }
+
+    async function toggleRecording() {
+      if (recording) {
+        mediaRecorder.stop();
+        recording = false;
+        voiceBtn.classList.remove('recording');
+        voiceBtn.textContent = '🎤';
+      } else {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          try {
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/ogg' });
+          } catch (e) {
+            mediaRecorder = new MediaRecorder(stream);
+          }
+          audioChunks = [];
+          mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+          };
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(audioChunks, { type: 'audio/ogg' });
+            selectedFile = new File([blob], 'voice_message.ogg', { type: 'audio/ogg' });
+            previewText.textContent = '🎙️ Voice message';
+            previewArea.style.display = 'flex';
+            toggleSendButton();
+            stream.getTracks().forEach(track => track.stop());
+            recording = false;
+            voiceBtn.classList.remove('recording');
+            voiceBtn.textContent = '🎤';
+          };
+          mediaRecorder.start();
+          recording = true;
+          voiceBtn.classList.add('recording');
+          voiceBtn.textContent = '⏹️';
+          removeAttachment();
+        } catch (err) {
+          alert('Microphone access denied.');
+        }
+      }
+    }
+
+    const PROXY_URL = '/whisper/send';
+    const FILE_PROXY_URL = '/whisper/send_file';
+
+    async function sendToServer(payload) {
+      try {
+        let response;
+        if (selectedFile) {
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          if (payload.text) formData.append('text', payload.text);
+          response = await fetch(FILE_PROXY_URL, { method: 'POST', body: formData });
+        } else {
+          response = await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }
+        const result = await response.json();
+        if (!result.success) {
+          console.error('Send failed:', result.error);
+        }
+      } catch (err) {
+        console.error('Connection error:', err);
+      }
+    }
+
+    async function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text && !selectedFile) return;
+      if (isSending) return;
+
+      if (selectedFile) {
+        if (text) addMessage(text);
+        addMessage('📎 ' + (selectedFile.type.startsWith('image/') ? 'Photo' : 'Voice message'));
+      } else if (text) {
+        addMessage(text);
+      }
+
+      emojiPanel.classList.remove('open');
+
+      setSendingState(true);
+
+      await sendToServer({ text: text });
+
+      messageInput.value = '';
+      removeAttachment();
+      sendButton.classList.remove('visible');
+      setSendingState(false);
+    }
+
+    messageInput.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+      toggleSendButton();
+    });
+
+    window.addEventListener('load', () => {
+      messageInput.focus();
+    });
+  </script>
+</body>
+</html>

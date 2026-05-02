@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>انتخاب نام کاربری</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Vazirmatn', Tahoma, sans-serif;
+      background: #17212b;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+    .card {
+      background: #0e1621;
+      padding: 2rem;
+      border-radius: 1.5rem;
+      text-align: center;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    h2 { margin-bottom: 1rem; }
+    input {
+      width: 100%;
+      padding: 0.8rem;
+      font-size: 1rem;
+      background: #212e3c;
+      border: 1px solid #2b3a4a;
+      border-radius: 0.8rem;
+      color: #fff;
+      margin: 1rem 0;
+      outline: none;
+      font-family: inherit;
+    }
+    .btn {
+      background: #2b5278;
+      color: #fff;
+      border: none;
+      padding: 0.8rem 2rem;
+      border-radius: 0.8rem;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 1rem;
+    }
+    .btn:hover { background: #3a6a99; }
+    .error { color: #ff4d4d; margin-top: 1rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>👤 نام کاربری خود را انتخاب کنید</h2>
+    <p style="color: #aab2bb; font-size: 0.9rem;">این نام برای دوستان شما قابل جستجو خواهد بود.</p>
+    <input type="text" id="usernameInput" placeholder="مثلاً amirrrr" maxlength="50">
+    <button class="btn" onclick="submitUsername()">ذخیره و ادامه</button>
+    <div id="errorMsg" class="error"></div>
+  </div>
+
+  <script>
+    async function submitUsername() {
+      const username = document.getElementById('usernameInput').value.trim();
+      if (!username) {
+        document.getElementById('errorMsg').textContent = 'نام کاربری نمی‌تواند خالی باشد.';
+        return;
+      }
+      try {
+        const resp = await fetch('/api/set_username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          window.location.href = '/set-password';
+        } else {
+          document.getElementById('errorMsg').textContent = data.error || 'خطا در ثبت نام کاربری.';
+        }
+      } catch (err) {
+        document.getElementById('errorMsg').textContent = 'خطای شبکه.';
+      }
+    }
+  </script>
+</body>
+</html>

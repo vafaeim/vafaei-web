@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>amirrrr</title>
+  <style>
+    :root {
+      --bg: #000;
+      --card-bg: rgba(10, 10, 10, 0.85);
+      --text: #e8e8e8;
+      --text-secondary: #999;
+      --border: rgba(255, 255, 255, 0.08);
+      --link-hover-bg: rgba(255, 255, 255, 0.03);
+      --link-hover-border: rgba(255, 255, 255, 0.2);
+      --rule-color: rgba(255, 255, 255, 0.3);
+      --footer-color: #333;
+      --game-prompt: #555;
+      --bird-color: #e0e0e0;
+      --pipe-color: #555;
+      --game-bg: #0a0a0a;
+      --game-border: rgba(255,255,255,0.07);
+      --particle-color: rgba(255, 255, 255, 0.1);
+      --toggle-color: #999;
+    }
+    body.light-mode {
+      --bg: #f5f5f5;
+      --card-bg: rgba(255, 255, 255, 0.9);
+      --text: #111;
+      --text-secondary: #333;
+      --border: rgba(0, 0, 0, 0.08);
+      --link-hover-bg: rgba(0, 0, 0, 0.03);
+      --link-hover-border: rgba(0, 0, 0, 0.2);
+      --rule-color: rgba(0, 0, 0, 0.2);
+      --footer-color: #aaa;
+      --game-prompt: #888;
+      --bird-color: #111;
+      --pipe-color: #aaa;
+      --game-bg: #f0f0f0;
+      --game-border: rgba(0,0,0,0.07);
+      --particle-color: rgba(0, 0, 0, 0.1);
+      --toggle-color: #333;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      overflow-y: auto;
+      position: relative;
+      transition: background 0.4s;
+    }
+    #particles {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 0; pointer-events: none;
+    }
+    .page {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 3rem 1.5rem 6rem;
+    }
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+      border: 1px solid var(--border);
+      border-radius: 0; padding: 3rem 2.5rem;
+      max-width: 420px; width: 100%; text-align: center;
+      transition: background 0.4s, border-color 0.4s;
+      position: relative;
+    }
+    .theme-toggle {
+      position: absolute; top: 1rem; left: 1rem;
+      background: none; border: 1px solid transparent;
+      color: var(--toggle-color); font-size: 1.2rem; cursor: pointer;
+      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; transition: all 0.3s;
+    }
+    .theme-toggle:hover { border-color: var(--border); background: var(--link-hover-bg); }
+    .rule {
+      width: 40px; height: 1px; background: var(--rule-color);
+      margin: 0 auto 2rem; transition: background 0.4s;
+    }
+    h1 {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      font-size: 2rem; font-weight: 400; color: var(--text);
+      letter-spacing: 0.15em; margin-bottom: 2.5rem; text-transform: lowercase;
+      transition: color 0.4s;
+    }
+    .links { display: flex; flex-direction: column; gap: 0.75rem; }
+    a {
+      display: block; padding: 0.75rem 1rem;
+      color: var(--text-secondary); text-decoration: none;
+      font-size: 0.9rem; font-weight: 400; letter-spacing: 0.05em;
+      border: 1px solid var(--border);
+      transition: all 0.3s ease; text-align: center;
+    }
+    a:hover {
+      color: var(--text); border-color: var(--link-hover-border);
+      background: var(--link-hover-bg);
+    }
+    .footer {
+      margin-top: 2.5rem; font-size: 0.65rem;
+      color: var(--footer-color); letter-spacing: 0.1em; transition: color 0.4s;
+    }
+    .game-section {
+      margin-top: 4rem;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .game-prompt { color: var(--game-prompt); font-size: 0.7rem; margin-bottom: 0.5rem; }
+    canvas#flappyCanvas {
+      display: block;
+      border: 1px solid var(--game-border);
+      background: var(--game-bg);
+      transition: background 0.4s, border-color 0.4s;
+    }
+    .reset-btn {
+      margin-top: 1rem;
+      background: var(--button-bg);
+      border: 1px solid var(--button-border);
+      color: var(--button-text);
+      font-size: 0.8rem;
+      padding: 0.4rem 1.2rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: lowercase;
+      display: none;
+    }
+    .reset-btn:hover {
+      color: var(--text);
+      border-color: var(--link-hover-border);
+      background: var(--link-hover-bg);
+    }
+    .reset-btn.show { display: inline-block; }
+    :root {
+      --button-bg: rgba(255,255,255,0.03);
+      --button-border: rgba(255,255,255,0.1);
+      --button-text: #aaa;
+    }
+    body.light-mode {
+      --button-bg: rgba(0,0,0,0.03);
+      --button-border: rgba(0,0,0,0.1);
+      --button-text: #333;
+    }
+    .social-links {
+      display: flex;
+      justify-content: center;
+      gap: 1.2rem;
+      margin-top: 0.8rem;
+    }
+    .social-links a {
+      font-size: 1.8rem;
+      color: var(--text-secondary);
+      transition: opacity 0.2s;
+      text-decoration: none;
+      border: none !important;
+      padding: 0 !important;
+      background: none !important;
+      opacity: 0.25;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+    }
+    .social-links a:hover {
+      opacity: 0.7;
+      background: none !important;
+    }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <canvas id="particles"></canvas>
+  <div class="page">
+    <div class="card">
+      <button class="theme-toggle" onclick="toggleTheme()" title="switch theme">◑</button>
+      <div class="rule"></div>
+      <h1>amirrrr</h1>
+      <div class="links">
+        <a href="/chat">Messenger</a>
+        <a href="/whisper/">Anonymous Message</a>
+        <a href="/douz/">Tic-Tac-Toe</a>
+      </div>
+      <br>
+      <div class="social-links">
+        <a href="https://github.com/vafaeim" target="_blank" title="GitHub">
+          <i class="fab fa-github"></i>
+        </a>
+        <a href="https://kaggle.com/vafaeii" target="_blank" title="Kaggle">
+          <i class="fab fa-kaggle"></i>
+        </a>
+        <a href="https://t.me/amirvafaeim" target="_blank" title="Telegram">
+          <i class="fab fa-telegram"></i>
+        </a>
+      </div>
+      <div class="footer">
+        —<br>
+        <span style="font-size:0.65rem;">scroll for a game (;</span>
+      </div>
+    </div>
+    <div class="game-section">
+      <p class="game-prompt">press space or click to fly</p>
+      <canvas id="flappyCanvas" width="360" height="480"></canvas>
+      <button id="resetButton" class="reset-btn">↻ retry</button>
+    </div>
+  </div>
+
+  <script>
+    const body = document.body;
+    const themeToggleBtn = document.querySelector('.theme-toggle');
+    function setTheme(isLight) {
+      if (isLight) { body.classList.add('light-mode'); themeToggleBtn.textContent = '◐'; }
+      else { body.classList.remove('light-mode'); themeToggleBtn.textContent = '◑'; }
+      localStorage.setItem('theme', isLight ? 'light' : 'dark');
+    }
+    function toggleTheme() { setTheme(!body.classList.contains('light-mode')); }
+    (localStorage.getItem('theme') === 'light') ? setTheme(true) : setTheme(false);
+
+    const canvasP = document.getElementById('particles');
+    const ctxP = canvasP.getContext('2d');
+    canvasP.width = window.innerWidth; canvasP.height = window.innerHeight;
+    const particles = []; const particleCount = 50;
+    class Particle {
+      constructor() {
+        this.x = Math.random() * canvasP.width; this.y = Math.random() * canvasP.height;
+        this.size = Math.random() * 1.5 + 0.3;
+        this.speedX = (Math.random() - 0.5) * 0.3; this.speedY = (Math.random() - 0.5) * 0.3;
+      }
+      update() { this.x += this.speedX; this.y += this.speedY; if (this.x<0||this.x>canvasP.width) this.speedX*=-1; if (this.y<0||this.y>canvasP.height) this.speedY*=-1; }
+      draw() {
+        const color = getComputedStyle(document.documentElement).getPropertyValue('--particle-color').trim();
+        ctxP.fillStyle = color; ctxP.beginPath(); ctxP.arc(this.x, this.y, this.size, 0, Math.PI*2); ctxP.fill();
+      }
+    }
+    for (let i=0; i<particleCount; i++) particles.push(new Particle());
+    function animateParticles() { ctxP.clearRect(0,0,canvasP.width,canvasP.height); particles.forEach(p=>{p.update();p.draw();}); requestAnimationFrame(animateParticles); }
+    animateParticles();
+    window.addEventListener('resize', () => { canvasP.width = window.innerWidth; canvasP.height = window.innerHeight; });
+
+    const canvas = document.getElementById('flappyCanvas');
+    const ctx = canvas.getContext('2d');
+    const resetBtn = document.getElementById('resetButton');
+
+    function getStyleVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+    const bird = { x:60, y:canvas.height/2, w:16, h:16, gravity:0.5, lift:-8, vel:0 };
+    let pipes = [];
+    const PW = 18, GAP = 110;
+    let frame = 0, score = 0, best = parseInt(localStorage.getItem('flappyBest')||'0');
+    let started = false, over = false;
+    let animId;
+
+    function resetGame() {
+      bird.y = canvas.height/2; bird.vel = 0;
+      pipes = []; frame = 0; score = 0;
+      over = false; started = true;
+      resetBtn.classList.remove('show');
+    }
+
+    function drawBird() {
+      ctx.fillStyle = getStyleVar('--bird-color');
+      ctx.fillRect(bird.x, bird.y, bird.w, bird.h);
+    }
+
+    function drawPipes() {
+      ctx.fillStyle = getStyleVar('--pipe-color');
+      for (let p of pipes) {
+        ctx.fillRect(p.x, 0, PW, p.top);
+        ctx.fillRect(p.x, p.top+GAP, PW, canvas.height-p.top-GAP);
+      }
+    }
+
+    function updatePipes() {
+      if (frame % 90 === 0) {
+        let top = Math.random()*(canvas.height-GAP-60)+30;
+        pipes.push({ x:canvas.width, top, scored:false });
+      }
+      for (let p of pipes) p.x -= 2;
+      pipes = pipes.filter(p => p.x > -PW);
+    }
+
+    function checkCollision() {
+      for (let p of pipes) {
+        if (bird.x+bird.w > p.x && bird.x < p.x+PW) {
+          if (bird.y < p.top || bird.y+bird.h > p.top+GAP) return true;
+        }
+      }
+      return bird.y < 0 || bird.y+bird.h > canvas.height;
+    }
+
+    function updateScore() {
+      for (let p of pipes) {
+        if (!p.scored && p.x+PW < bird.x) { score++; p.scored = true; if (score > best) { best = score; localStorage.setItem('flappyBest', best); } }
+      }
+    }
+
+    function drawIdle() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      let bob = Math.sin(Date.now()*0.008)*6;
+      ctx.fillStyle = getStyleVar('--bird-color');
+      ctx.fillRect(bird.x, bird.y+bob, bird.w, bird.h);
+      ctx.fillStyle = getStyleVar('--text-secondary');
+      ctx.font = '18px "Segoe UI"';
+      ctx.textAlign = 'center';
+      ctx.fillText('press space or click to start', canvas.width/2, canvas.height/2-20);
+      ctx.font = '13px "Segoe UI"';
+      ctx.textAlign = 'right';
+      ctx.fillText('best: '+best, canvas.width-15, 25);
+    }
+
+    function drawPlaying() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      drawPipes();
+      drawBird();
+      ctx.fillStyle = getStyleVar('--text-secondary');
+      ctx.font = 'bold 16px "Segoe UI"';
+      ctx.textAlign = 'left';
+      ctx.fillText(score, 15, 30);
+      ctx.font = '13px "Segoe UI"';
+      ctx.textAlign = 'right';
+      ctx.fillText('best: '+best, canvas.width-15, 25);
+    }
+
+    function drawGameOver() {
+      ctx.fillStyle = getStyleVar('--text-secondary');
+      ctx.textAlign = 'center';
+      let cy = canvas.height/2 - 30;
+      ctx.font = '22px "Georgia"';
+      ctx.fillText('game over', canvas.width/2, cy);
+      cy += 35;
+      ctx.font = '16px "Segoe UI"';
+      ctx.fillText('score: ' + score, canvas.width/2, cy);
+      cy += 25;
+      ctx.fillText('best: ' + best, canvas.width/2, cy);
+    }
+
+    function gameLoop() {
+      if (!started && !over) {
+        drawIdle();
+        animId = requestAnimationFrame(gameLoop);
+        return;
+      }
+      if (over) {
+        animId = requestAnimationFrame(gameLoop);
+        return;
+      }
+      bird.vel += bird.gravity;
+      bird.y += bird.vel;
+      updatePipes();
+      updateScore();
+      drawPlaying();
+      if (checkCollision()) {
+        over = true; started = false;
+        drawGameOver();
+        resetBtn.classList.add('show');
+      }
+      frame++;
+      animId = requestAnimationFrame(gameLoop);
+    }
+
+    function jump() {
+      if (over) return;
+      if (!started) { resetGame(); }
+      else { bird.vel = bird.lift; }
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.code === 'Space') {
+        if (document.activeElement && (document.activeElement.tagName === 'BUTTON' || document.activeElement.tagName === 'INPUT')) return;
+        e.preventDefault();
+        jump();
+      }
+    });
+    canvas.addEventListener('click', jump);
+    resetBtn.addEventListener('click', () => { if (over) resetGame(); });
+    animId = requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>

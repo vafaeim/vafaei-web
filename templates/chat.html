@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Chat</title>
+  <link href="{{ url_for('static', filename='assets/styles/Vazirmatn-font-face.css') }}" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #17212b;
+      --sidebar-bg: #17212b;
+      --chat-bg: #0e1621;
+      --text-primary: #fff;
+      --text-secondary: #aab2bb;
+      --border-color: #2a3a4a;
+      --hover-bg: #212e3c;
+      --bubble-sent: #2b5278;
+      --bubble-received: #182533;
+      --input-bg: #212e3c;
+      --input-border: #2b3a4a;
+      --btn-color: #8ea2b8;
+      --btn-hover-bg: #2b5278;
+      --status-bar-bg: #212e3c;
+      --shadow: 0 2px 10px rgba(0,0,0,0.3);
+      --transition: 0.3s ease;
+    }
+    body.light-mode {
+      --bg: #f5f5f5;
+      --sidebar-bg: #ffffff;
+      --chat-bg: #f8f9fa;
+      --text-primary: #000;
+      --text-secondary: #707579;
+      --border-color: #d3d9de;
+      --hover-bg: #e8ecef;
+      --bubble-sent: #e3ffd8;
+      --bubble-received: #ffffff;
+      --input-bg: #fff;
+      --input-border: #d3d9de;
+      --btn-color: #707579;
+      --btn-hover-bg: #e8ecef;
+      --status-bar-bg: #ffffff;
+      --shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: 'Vazirmatn', Tahoma, sans-serif;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+      transition: background var(--transition);
+    }
+    .app-container {
+      width: 100%;
+      max-width: 1000px;
+      height: 100%;
+      display: flex;
+      background: var(--sidebar-bg);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: background var(--transition);
+      border-radius: 1.5rem;
+    }
+    .sidebar {
+      width: 320px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      transition: all var(--transition);
+    }
+    .sidebar-header {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sidebar-header .title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .search-box {
+      padding: 0.6rem 1rem;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 0.6rem 1rem;
+      border-radius: 1.5rem;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      color: var(--text-primary);
+      outline: none;
+      font-size: 0.9rem;
+      transition: background var(--transition);
+      font-family: inherit;
+    }
+    .search-results {
+      max-height: 200px;
+      overflow-y: auto;
+      border-bottom: 1px solid var(--border-color);
+      display: none;
+    }
+    .search-result-item {
+      padding: 0.7rem 1rem;
+      cursor: pointer;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .search-result-item:hover {
+      background: var(--hover-bg);
+    }
+    .chat-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .chat-item {
+      display: flex;
+      align-items: center;
+      padding: 0.8rem 1rem;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border-color);
+      transition: background 0.2s;
+    }
+    .chat-item:hover, .chat-item.active {
+      background: var(--hover-bg);
+    }
+    .chat-item .avatar {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: var(--bubble-sent);
+      display: flex; align-items: center; justify-content: center;
+      margin-right: 0.8rem;
+      color: #fff;
+      font-weight: 600;
+      font-size: 1.2rem;
+    }
+    .chat-item .chat-info {
+      flex: 1;
+    }
+    .chat-item .chat-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .chat-item .last-message {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chat-item .chat-time {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+    }
+
+    .main-chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--chat-bg);
+      transition: background var(--transition);
+      position: relative;
+    }
+    .chat-header {
+      padding: 0.8rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--status-bar-bg);
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    .back-btn {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--btn-color);
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.2rem;
+    }
+    .back-btn:hover { color: #2b9cff; }
+
+    .messages-container {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .message-row {
+      display: flex;
+      position: relative;
+    }
+    .message-row.sent {
+      justify-content: flex-end;
+    }
+    .message-row.received {
+      justify-content: flex-start;
+    }
+    .bubble {
+      max-width: 70%;
+      padding: 0.6rem 0.9rem;
+      border-radius: 1.2rem;
+      font-size: 0.95rem;
+      color: var(--text-primary);
+      position: relative;
+      word-wrap: break-word;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      cursor: pointer;
+      transition: background 0.15s;
+      direction: auto;
+      text-align: start;
+    }
+    .bubble:active {
+      background: rgba(255,255,255,0.1);
+    }
+    .bubble.sent {
+      background: var(--bubble-sent);
+      border-bottom-right-radius: 0.3rem;
+    }
+    .bubble.received {
+      background: var(--bubble-received);
+      border-bottom-left-radius: 0.3rem;
+    }
+    .bubble.emoji-only {
+      background: transparent !important;
+      box-shadow: none;
+      font-size: 2.5rem;
+      padding: 0.2rem;
+      line-height: 1.2;
+    }
+    .bubble .message-time {
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      float: right;
+      margin-left: 0.5rem;
+      margin-top: 0.2rem;
+      direction: ltr;
+      text-align: right;
+    }
+    .no-chat-message {
+      color: var(--text-secondary);
+      text-align: center;
+      margin-top: 3rem;
+      font-size: 1rem;
+    }
+
+    .reply-preview {
+      background: var(--input-bg);
+      border-top: 1px solid var(--border-color);
+      padding: 0.5rem 1rem;
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+    .reply-preview.active {
+      display: flex;
+    }
+    .reply-preview .reply-text {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 60%;
+    }
+    .reply-preview .cancel-reply {
+      color: #ff4d4d;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .reply-quote {
+      border-left: 3px solid #2b9cff;
+      padding-left: 0.6rem;
+      margin-bottom: 0.3rem;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      direction: auto;
+      text-align: start;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .reply-quote .reply-sender {
+      font-weight: 600;
+      color: #2b9cff;
+      margin-bottom: 0.1rem;
+    }
+
+    .input-area {
+      padding: 0.8rem 1rem;
+      border-top: 1px solid var(--border-color);
+      background: var(--input-bg);
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+    .input-area textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 16px;
+      resize: none;
+      padding: 0.4rem 0;
+      font-family: inherit;
+      max-height: 100px;
+      direction: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+    .input-area .send-chat-btn {
+      background: none;
+      border: none;
+      color: #2b9cff;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.3rem;
+    }
+    .input-area .send-chat-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .theme-toggle {
+      background: none;
+      border: none;
+      color: var(--btn-color);
+      font-size: 1.2rem;
+      cursor: pointer;
+      width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+    }
+    .theme-toggle:hover { background: var(--hover-bg); }
+
+    .error-toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #ff4d4d;
+        color: #fff;
+        padding: 0.6rem 1.2rem;
+        border-radius: 0.5rem;
+        z-index: 999;
+        font-size: 0.9rem;
+        white-space: nowrap;
+    }
+
+    .typing-indicator {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin: 0.3rem 0;
+        font-style: italic;
+    }
+
+    .msg-ticks {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        margin-left: 4px;
+        float: right;
+        direction: ltr;
+    }
+    .msg-ticks.seen {
+        color: #4fc3f7;
+    }
+
+    @media (max-width: 700px) {
+      .app-container {
+        border-radius: 0;
+      }
+      .sidebar {
+        width: 100%;
+      }
+      .main-chat {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 10;
+        transform: translateX(100%);
+        display: flex;
+      }
+      .main-chat.active {
+        transform: translateX(0);
+      }
+      .back-btn {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="title">Chats</span>
+        <div style="display:flex;align-items:center;gap:0.3rem;">
+          <button id="changeUsernameSidebarBtn" class="theme-toggle" style="font-size:1rem;" title="Change Username">✏️</button>
+          <button id="changePasswordSidebarBtn" class="theme-toggle" style="font-size:1rem;" title="Change Password">🔑</button>
+          <button class="theme-toggle" onclick="toggleTheme()">◑</button>
+        </div>
+      </div>
+      <div class="search-box">
+        <input type="text" id="searchUserInput" placeholder="Search user..." oninput="searchUsers()">
+      </div>
+      <div class="search-results" id="searchResults"></div>
+      <div class="chat-list" id="chatList"></div>
+    </div>
+
+    <div class="main-chat" id="mainChat">
+      <div class="chat-header">
+        <button class="back-btn" onclick="backToChats()">←</button>
+        <span id="chatHeader"></span>
+        <span id="onlineStatus" style="margin-left:auto; font-size:0.8rem; color:var(--text-secondary);"></span>
+      </div>
+      <div class="reply-preview" id="replyPreview">
+        <span class="reply-text" id="replyText"></span>
+        <span class="cancel-reply" onclick="cancelReply()">✕</span>
+      </div>
+      <div class="messages-container" id="messagesContainer">
+        <div class="no-chat-message">Select a chat to start messaging</div>
+      </div>
+      <div class="input-area" id="inputArea" style="display:none;">
+        <textarea id="chatInput" placeholder="Message" dir="auto" rows="1" oninput="autoResize(this)"></textarea>
+        <button class="send-chat-btn" id="sendChatBtn" onclick="sendChatMessage()">➤</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="usernameModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.6);z-index:200;justify-content:center;align-items:center;">
+    <div style="background:var(--chat-bg);padding:2rem;border-radius:1.5rem;max-width:320px;width:100%;text-align:center;
+      border:1px solid var(--border-color);">
+      <h3 style="color:var(--text-primary);margin-bottom:1rem;">Change Username</h3>
+      <input type="text" id="newUsernameInput" placeholder="New username"
+        style="width:100%;padding:0.6rem;background:var(--input-bg);border:1px solid var(--border-color);
+        border-radius:0.8rem;color:var(--text-primary);margin-bottom:1rem;font-size:16px;">
+      <div>
+        <button id="saveUsernameBtn" style="background:#2b5278;color:#fff;border:none;padding:0.5rem 1.5rem;
+          border-radius:0.8rem;cursor:pointer;font-size:0.9rem;">Save</button>
+        <button id="cancelUsernameBtn" style="background:transparent;color:var(--btn-color);
+          border:1px solid var(--border-color);padding:0.5rem 1.5rem;border-radius:0.8rem;cursor:pointer;
+          margin-left:0.5rem;font-size:0.9rem;">Cancel</button>
+      </div>
+      <div id="usernameMsg" style="margin-top:1rem;font-size:0.9rem;"></div>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
+  <script>
+    const body = document.body;
+    function toggleTheme() {
+      body.classList.toggle('light-mode');
+      localStorage.setItem('theme', body.classList.contains('light-mode') ? 'light' : 'dark');
+    }
+    (localStorage.getItem('theme') === 'light') ? body.classList.add('light-mode') : body.classList.remove('light-mode');
+
+    function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return String(unsafe)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    const socket = io();
+    let activeChatId = null;
+    let oldestMessageId = null;
+    let isLoadingMore = false;
+    const MESSAGE_LIMIT = 50;
+    let currentUsername = null;
+    let currentUserId = null;
+    let otherUserId = null;
+    let replyToMessage = null;
+    let typingTimeout;
+    let typingIndicator = document.getElementById('typingIndicator');
+
+    socket.on('user_typing', (data) => {
+        if (!typingIndicator) {
+            typingIndicator = document.createElement('div');
+            typingIndicator.id = 'typingIndicator';
+            typingIndicator.className = 'typing-indicator';
+            typingIndicator.textContent = data.user + ' is typing...';
+            document.getElementById('messagesContainer').appendChild(typingIndicator);
+        }
+    });
+
+    socket.on('user_stop_typing', () => {
+        if (typingIndicator) {
+            typingIndicator.remove();
+            typingIndicator = null;
+        }
+    });
+
+    document.getElementById('chatInput').addEventListener('input', function() {
+        socket.emit('typing', { chat_id: activeChatId });
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            socket.emit('stop_typing', { chat_id: activeChatId });
+        }, 1000);
+    });
+
+    socket.on('connect', () => {
+      socket.emit('join_chat');
+    });
+
+    socket.on('new_message', (msg) => {
+      const chatId = Number(msg.chat_id);
+      if (activeChatId === chatId) {
+        appendMessage(msg, msg.sender_username === currentUsername);
+        socket.emit('seen', { chat_id: chatId });
+      }
+      loadChats();
+    });
+
+    socket.on('new_message_notification', () => {
+      loadChats();
+    });
+
+    socket.on('error', (data) => {
+        showToast('⚠️ ' + (data.msg || 'An error occurred'));
+    });
+
+    socket.on('message_seen', (data) => {
+        if (data.chat_id === activeChatId) {
+            document.querySelectorAll('.message-row.sent .msg-ticks').forEach(tick => {
+                tick.textContent = '✓✓';
+                tick.classList.add('seen');
+            });
+        }
+    });
+
+    socket.on('user_status_changed', (data) => {
+        if (data.user_id == otherUserId) {
+            updateOnlineStatus(data);
+        }
+    });
+
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'error-toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    fetch('/api/whoami').then(r => r.json()).then(d => {
+        currentUserId = d.user_id;
+        currentUsername = d.username;
+    });
+
+    function isEmojiOnly(text) {
+      if (!text) return false;
+      const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
+      const graphemes = [...segmenter.segment(text)].map(s => s.segment);
+      const emojiRegex = /\p{Emoji}/u;
+      const allEmoji = graphemes.every(g => emojiRegex.test(g));
+      return allEmoji && graphemes.length >= 1 && graphemes.length <= 3;
+    }
+
+    function searchUsers() {
+      const q = document.getElementById('searchUserInput').value.trim();
+      const resultsDiv = document.getElementById('searchResults');
+      if (!q) { resultsDiv.style.display = 'none'; return; }
+      fetch(`/api/search_users?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(users => {
+          resultsDiv.innerHTML = '';
+          users.forEach(u => {
+              const div = document.createElement('div');
+              div.className = 'search-result-item';
+              div.textContent = u.username;
+              div.onclick = () => startChat(u.id);
+              resultsDiv.appendChild(div);
+          });
+          resultsDiv.style.display = users.length ? 'block' : 'none';
+        });
+    }
+
+    function startChat(userId) {
+      fetch('/api/start_chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.chat_id) {
+          openChat(data.chat_id);
+          document.getElementById('searchResults').style.display = 'none';
+          document.getElementById('searchUserInput').value = '';
+        }
+      });
+    }
+
+    function loadChats() {
+      fetch('/api/chats')
+        .then(r => r.json())
+        .then(chats => {
+          const chatList = document.getElementById('chatList');
+          chatList.innerHTML = '';
+          chats.forEach(c => {
+              const item = document.createElement('div');
+              item.className = 'chat-item' + (activeChatId === c.id ? ' active' : '');
+              item.onclick = () => openChat(c.id);
+
+              const avatar = document.createElement('div');
+              avatar.className = 'avatar';
+              avatar.textContent = c.other_username[0].toUpperCase();
+              item.appendChild(avatar);
+
+              const infoDiv = document.createElement('div');
+              infoDiv.className = 'chat-info';
+
+              const nameDiv = document.createElement('div');
+              nameDiv.className = 'chat-name';
+              nameDiv.textContent = c.other_username;
+              infoDiv.appendChild(nameDiv);
+
+              const lastMsg = document.createElement('div');
+              lastMsg.className = 'last-message';
+              lastMsg.textContent = c.last_message || '';
+              infoDiv.appendChild(lastMsg);
+
+              item.appendChild(infoDiv);
+
+              const timeDiv = document.createElement('div');
+              timeDiv.className = 'chat-time';
+              timeDiv.textContent = c.last_time
+                  ? new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : '';
+              item.appendChild(timeDiv);
+
+              chatList.appendChild(item);
+          });
+        });
+    }
+
+    function updateOnlineStatus(status) {
+        const el = document.getElementById('onlineStatus');
+        if (status.online) {
+            el.innerHTML = '<span style="color:#34d399;">●</span> online';
+            return;
+        }
+
+        if (!status.last_seen) {
+            el.textContent = '';
+            return;
+        }
+
+        const last = new Date(status.last_seen);
+        const now = new Date();
+        const diff = Math.floor((now - last) / 1000);
+
+        let text;
+        if (diff < 60) text = 'last seen just now';
+        else if (diff < 3600) text = `last seen ${Math.floor(diff/60)} minutes ago`;
+        else if (diff < 86400) text = `last seen ${Math.floor(diff/3600)} hours ago`;
+        else text = 'last seen ' + last.toLocaleDateString();
+
+        el.innerHTML = '<span style="color:#888;">●</span> ' + text;
+    }
+
+    function openChat(chatId) {
+        activeChatId = chatId;
+        socket.emit('join_chat_room', { chat_id: chatId });
+        cancelReply();
+
+        const mainChat = document.getElementById('mainChat');
+        mainChat.classList.add('active');
+        document.getElementById('inputArea').style.display = 'flex';
+        const msgContainer = document.getElementById('messagesContainer');
+        msgContainer.innerHTML = '';
+        oldestMessageId = null;
+
+        fetch('/api/chats').then(r => r.json()).then(chats => {
+            const chat = chats.find(c => c.id == chatId);
+            if (chat) {
+                document.getElementById('chatHeader').textContent = chat.other_username;
+                otherUserId = chat.other_user_id;
+
+                fetch('/api/user_status/' + otherUserId)
+                    .then(r => r.json())
+                    .then(status => {
+                        updateOnlineStatus(status);
+                    });
+            }
+
+            fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
+                .then(r => r.json())
+                .then(messages => {
+                    if (messages.length > 0) {
+                        oldestMessageId = messages[0].id;
+                    }
+                    messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
+                    msgContainer.scrollTop = msgContainer.scrollHeight;
+                });
+        });
+
+        socket.emit('seen', { chat_id: chatId });
+        if (window.innerWidth < 700) {
+            document.getElementById('sidebar').classList.add('hidden');
+        }
+    }
+
+    function createMessageElement(msg, isSent) {
+        const row = document.createElement('div');
+        row.className = 'message-row ' + (isSent ? 'sent' : 'received');
+
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble ' + (isSent ? 'sent' : 'received');
+        bubble.setAttribute('dir', 'auto');
+
+        if (isEmojiOnly(msg.text)) {
+            bubble.classList.add('emoji-only');
+            bubble.textContent = msg.text;
+            row.appendChild(bubble);
+            return row;
+        }
+
+        if (msg.reply_to) {
+            const quoteDiv = document.createElement('div');
+            quoteDiv.className = 'reply-quote';
+            quoteDiv.setAttribute('dir', 'auto');
+
+            const senderSpan = document.createElement('div');
+            senderSpan.className = 'reply-sender';
+            senderSpan.textContent = msg.reply_to.sender_username;
+            quoteDiv.appendChild(senderSpan);
+
+            const previewSpan = document.createElement('div');
+            const previewText = msg.reply_to.text.length > 60 ? msg.reply_to.text.substring(0, 60) + '...' : msg.reply_to.text;
+            previewSpan.textContent = previewText;
+            quoteDiv.appendChild(previewSpan);
+
+            bubble.appendChild(quoteDiv);
+        }
+
+        const textNode = document.createTextNode(msg.text || '');
+        bubble.appendChild(textNode);
+
+        const time = document.createElement('span');
+        time.className = 'message-time';
+        time.textContent = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        bubble.appendChild(time);
+
+        bubble.addEventListener('click', () => {
+            replyToMessage = msg;
+            const previewText = msg.text.length > 40 ? msg.text.substring(0, 40) + '...' : msg.text;
+            document.getElementById('replyText').textContent = '↩ ' + previewText;
+            document.getElementById('replyPreview').classList.add('active');
+            document.getElementById('chatInput').focus();
+        });
+
+        if (isSent) {
+            const ticks = document.createElement('span');
+            ticks.className = 'msg-ticks';
+            const seenBy = msg.seen_by || [];
+            const seen = seenBy.includes(otherUserId);
+            ticks.textContent = seen ? '✓✓' : '✓';
+            if (seen) ticks.classList.add('seen');
+            bubble.appendChild(ticks);
+        }
+
+        row.appendChild(bubble);
+        return row;
+    }
+
+    function appendMessage(msg, isSent) {
+        const container = document.getElementById('messagesContainer');
+        const row = createMessageElement(msg, isSent);
+        container.appendChild(row);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function cancelReply() {
+      replyToMessage = null;
+      document.getElementById('replyPreview').classList.remove('active');
+    }
+
+    function sendChatMessage() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text && !replyToMessage) return;
+      if (!activeChatId) return;
+
+      const payload = { chat_id: activeChatId, text: text };
+      if (replyToMessage) {
+        payload.reply_to_message_id = replyToMessage.id;
+        cancelReply();
+      }
+
+      socket.emit('send_chat_message', payload);
+      input.value = '';
+      autoResize(input);
+    }
+
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
+    }
+
+    function backToChats() {
+      document.getElementById('mainChat').classList.remove('active');
+      document.getElementById('sidebar').classList.remove('hidden');
+      activeChatId = null;
+      cancelReply();
+    }
+
+    loadChats();
+    window.addEventListener('load', () => {
+      document.getElementById('searchUserInput').focus();
+    });
+    const usernameModal = document.getElementById('usernameModal');
+    const newUsernameInput = document.getElementById('newUsernameInput');
+    const saveUsernameBtn = document.getElementById('saveUsernameBtn');
+    const cancelUsernameBtn = document.getElementById('cancelUsernameBtn');
+    const usernameMsg = document.getElementById('usernameMsg');
+
+    const changeUsernameSidebarBtn = document.getElementById('changeUsernameSidebarBtn');
+    if (changeUsernameSidebarBtn) {
+      changeUsernameSidebarBtn.addEventListener('click', () => {
+        usernameModal.style.display = 'flex';
+        newUsernameInput.value = currentUsername || '';
+        newUsernameInput.focus();
+      });
+    }
+
+    const changePasswordSidebarBtn = document.getElementById('changePasswordSidebarBtn');
+    if (changePasswordSidebarBtn) {
+    changePasswordSidebarBtn.addEventListener('click', () => {
+        window.location.href = '/set-password';
+    });
+    }
+
+    cancelUsernameBtn.addEventListener('click', () => {
+      usernameModal.style.display = 'none';
+      newUsernameInput.value = '';
+      usernameMsg.textContent = '';
+    });
+
+    saveUsernameBtn.addEventListener('click', async () => {
+      const newName = newUsernameInput.value.trim();
+      if (!newName) {
+        usernameMsg.textContent = 'Username cannot be empty.';
+        usernameMsg.style.color = '#ff4d4d';
+        return;
+      }
+
+      try {
+        const resp = await fetch('/api/change_username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: newName })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          currentUsername = newName;
+          usernameMsg.textContent = 'Username updated successfully!';
+          usernameMsg.style.color = '#34d399';
+          setTimeout(() => {
+            usernameModal.style.display = 'none';
+          }, 1000);
+          loadChats();
+        } else {
+          usernameMsg.textContent = data.error || 'Failed to update.';
+          usernameMsg.style.color = '#ff4d4d';
+        }
+      } catch (err) {
+        usernameMsg.textContent = 'Network error.';
+        usernameMsg.style.color = '#ff4d4d';
+      }
+    });
+    const messagesContainerEl = document.getElementById('messagesContainer');
+    messagesContainerEl.addEventListener('scroll', function() {
+        if (isLoadingMore) return;
+        if (messagesContainerEl.scrollTop < 30 && oldestMessageId && activeChatId) {
+            isLoadingMore = true;
+
+            const prevScrollHeight = messagesContainerEl.scrollHeight;
+            const prevScrollTop = messagesContainerEl.scrollTop;
+
+            fetch(`/api/messages/${activeChatId}?limit=${MESSAGE_LIMIT}&before_id=${oldestMessageId}`)
+                .then(r => r.json())
+                .then(olderMessages => {
+                    if (!olderMessages.length) {
+                        oldestMessageId = null;
+                        return;
+                    }
+
+                    const fragment = document.createDocumentFragment();
+                    olderMessages.forEach(msg => {
+                        const isSent = msg.sender_username === currentUsername;
+                        fragment.appendChild(createMessageElement(msg, isSent));
+                    });
+
+                    messagesContainerEl.insertBefore(fragment, messagesContainerEl.firstChild);
+                    oldestMessageId = olderMessages[0].id;
+
+                    const newScrollHeight = messagesContainerEl.scrollHeight;
+                    messagesContainerEl.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop;
+                })
+                .catch(err => console.error('Error loading older messages:', err))
+                .finally(() => {
+                    isLoadingMore = false;
+                });
+        }
+    });
+  </script>
+</body>
+</html>

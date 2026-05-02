@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dous</title>
+  <style>
+    :root {
+      --bg: #000;
+      --text: #e8e8e8;
+      --text-secondary: #999;
+      --border: rgba(255,255,255,0.08);
+      --cell-bg: rgba(255,255,255,0.03);
+      --cell-hover: rgba(255,255,255,0.06);
+      --x-color: #c084fc;
+      --o-color: #60a5fa;
+      --container-bg: rgba(20,20,30,0.8);
+      --button-bg: rgba(255,255,255,0.03);
+      --button-border: rgba(255,255,255,0.1);
+      --button-text: #aaa;
+      --input-bg: rgba(255,255,255,0.03);
+    }
+    body.light-mode {
+      --bg: #f5f5f5;
+      --text: #111;
+      --text-secondary: #333;
+      --border: rgba(0,0,0,0.08);
+      --cell-bg: rgba(0,0,0,0.02);
+      --cell-hover: rgba(0,0,0,0.05);
+      --x-color: #7c3aed;
+      --o-color: #2563eb;
+      --container-bg: rgba(255,255,255,0.85);
+      --button-bg: rgba(0,0,0,0.03);
+      --button-border: rgba(0,0,0,0.1);
+      --button-text: #333;
+      --input-bg: rgba(0,0,0,0.03);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem;
+      transition: background 0.4s;
+      position: relative;
+    }
+    .container {
+      background: var(--container-bg);
+      backdrop-filter: blur(15px);
+      border: 1px solid var(--border);
+      border-radius: 0;
+      padding: 2.5rem;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      position: relative;
+      transition: background 0.4s, border-color 0.4s;
+    }
+    .theme-toggle {
+      position: absolute; top: 1rem; left: 1rem;
+      background: none; border: 1px solid transparent;
+      color: var(--text-secondary); font-size: 1.2rem; cursor: pointer;
+      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+      border-radius: 50%;
+      transition: all 0.3s;
+    }
+    .theme-toggle:hover { border-color: var(--border); background: var(--cell-hover); }
+    h1 {
+      font-family: 'Georgia', serif;
+      font-size: 2rem; font-weight: 400; letter-spacing: 0.1em;
+      margin-bottom: 1.5rem;
+      color: var(--text);
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin: 1.5rem 0;
+    }
+    .cell {
+      background: var(--cell-bg);
+      border: 1px solid var(--border);
+      aspect-ratio: 1;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem;
+      font-weight: 300;
+      cursor: pointer;
+      transition: background 0.2s;
+      color: var(--text);
+    }
+    .cell:hover { background: var(--cell-hover); }
+    .cell.x { color: var(--x-color); }
+    .cell.o { color: var(--o-color); }
+    .status {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin: 1rem 0;
+    }
+    .room-info {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 1rem;
+    }
+    .scoreboard {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding: 0.5rem;
+      border: 1px solid var(--border);
+      font-size: 1.1rem;
+      background: var(--cell-bg);
+      color: var(--text);
+    }
+    .score-item {
+      text-align: center;
+      flex: 1;
+    }
+    .score-label {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      text-transform: lowercase;
+    }
+    button {
+      background: var(--button-bg);
+      border: 1px solid var(--button-border);
+      color: var(--button-text);
+      padding: 0.6rem 1.5rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin: 0.3rem;
+    }
+    button:hover {
+      color: var(--text);
+      border-color: var(--link-hover-border, rgba(255,255,255,0.2));
+      background: var(--cell-hover);
+    }
+    input {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      text-align: center;
+      width: 120px;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" onclick="toggleTheme()">◑</button>
+  <div class="container">
+    <h1>dous</h1>
+    <div id="lobby">
+      <button id="createRoomBtn">create room</button>
+      <div style="margin: 1rem 0; color: var(--text-secondary);">or</div>
+      <input type="text" id="roomInput" placeholder="room code" maxlength="6">
+      <button id="joinRoomBtn">join room</button>
+    </div>
+    <div id="gameArea" class="hidden">
+      <div class="room-info">room: <span id="roomCode"></span></div>
+      <div class="scoreboard" id="scoreboard">
+        <div class="score-item">
+          <span class="score-label">you</span>
+          <span id="myWins">0</span>
+        </div>
+        <div class="score-item">
+          <span class="score-label">draws</span>
+          <span id="draws">0</span>
+        </div>
+        <div class="score-item">
+          <span class="score-label">opponent</span>
+          <span id="oppWins">0</span>
+        </div>
+      </div>
+      <div class="status" id="status">waiting for opponent...</div>
+      <div class="board" id="board">
+        <div class="cell" data-idx="0"></div>
+        <div class="cell" data-idx="1"></div>
+        <div class="cell" data-idx="2"></div>
+        <div class="cell" data-idx="3"></div>
+        <div class="cell" data-idx="4"></div>
+        <div class="cell" data-idx="5"></div>
+        <div class="cell" data-idx="6"></div>
+        <div class="cell" data-idx="7"></div>
+        <div class="cell" data-idx="8"></div>
+      </div>
+      <button id="leaveBtn">leave room</button>
+      <button id="replayBtn" class="hidden">replay</button>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
+  <script>
+    const body = document.body;
+    function toggleTheme() {
+      body.classList.toggle('light-mode');
+      localStorage.setItem('theme', body.classList.contains('light-mode') ? 'light' : 'dark');
+    }
+    (localStorage.getItem('theme') === 'light') ? body.classList.add('light-mode') : body.classList.remove('light-mode');
+
+    const socket = io();
+
+    let myRoom = null;
+    let mySymbol = null;
+    let currentTurn = null;
+
+    const lobby = document.getElementById('lobby');
+    const gameArea = document.getElementById('gameArea');
+    const statusDiv = document.getElementById('status');
+    const roomCodeSpan = document.getElementById('roomCode');
+    const cells = document.querySelectorAll('.cell');
+    const replayBtn = document.getElementById('replayBtn');
+    const leaveBtn = document.getElementById('leaveBtn');
+    const myWinsSpan = document.getElementById('myWins');
+    const oppWinsSpan = document.getElementById('oppWins');
+    const drawsSpan = document.getElementById('draws');
+
+    document.getElementById('createRoomBtn').addEventListener('click', () => {
+      socket.emit('create_room');
+    });
+
+    document.getElementById('joinRoomBtn').addEventListener('click', () => {
+      const code = document.getElementById('roomInput').value.trim().toUpperCase();
+      if (code) socket.emit('join_room', {room: code});
+    });
+
+    cells.forEach(cell => {
+      cell.addEventListener('click', () => {
+        if (!mySymbol || currentTurn !== mySymbol) return;
+        const idx = cell.dataset.idx;
+        socket.emit('make_move', {room: myRoom, index: idx});
+      });
+    });
+
+    socket.on('room_created', (data) => {
+      myRoom = data.room;
+      joinGameRoom(data.room);
+      roomCodeSpan.textContent = data.room;
+      statusDiv.textContent = 'waiting for opponent...';
+      updateScores({my_wins: 0, opponent_wins: 0, draws: 0});
+    });
+
+    socket.on('room_joined', (data) => {
+      myRoom = data.room;
+      joinGameRoom(data.room);
+      roomCodeSpan.textContent = data.room;
+    });
+
+    socket.on('game_start', (data) => {
+      mySymbol = data.symbol;
+      currentTurn = 'X';
+      statusDiv.textContent = data.symbol === 'X' ? 'your turn' : 'opponent turn';
+      updateBoard(data.board);
+      updateScores(data.scores);
+      replayBtn.classList.add('hidden');
+    });
+
+    socket.on('board_update', (data) => {
+      updateBoard(data.board);
+      currentTurn = data.turn;
+      statusDiv.textContent = data.turn === mySymbol ? 'your turn' : 'opponent turn';
+    });
+
+    socket.on('game_over', (data) => {
+      updateBoard(data.board);
+      if (data.winner) {
+        const winText = data.winner === mySymbol ? 'you won!' : 'you lost';
+        statusDiv.textContent = winText;
+      } else {
+        statusDiv.textContent = 'draw';
+      }
+      currentTurn = null;
+      updateScores(data.scores);
+      replayBtn.classList.remove('hidden');
+      replayBtn.textContent = 'replay';
+      replayBtn.disabled = false;
+    });
+
+    socket.on('opponent_left', () => {
+      statusDiv.textContent = 'opponent left the room';
+      currentTurn = null;
+      replayBtn.classList.add('hidden');
+    });
+
+    replayBtn.addEventListener('click', () => {
+      socket.emit('request_replay', {room: myRoom});
+      replayBtn.textContent = 'waiting...';
+      replayBtn.disabled = true;
+    });
+
+    socket.on('replay_waiting', (data) => {
+      statusDiv.textContent = data.msg;
+    });
+
+    socket.on('replay_accepted', (data) => {
+      mySymbol = data.symbol;
+      currentTurn = 'X';
+      updateBoard(data.board);
+      updateScores(data.scores);
+      statusDiv.textContent = data.symbol === 'X' ? 'your turn' : 'opponent turn';
+      replayBtn.classList.add('hidden');
+    });
+
+    leaveBtn.addEventListener('click', () => {
+      socket.emit('leave_room', {room: myRoom});
+      myRoom = null;
+      mySymbol = null;
+      gameArea.classList.add('hidden');
+      lobby.classList.remove('hidden');
+    });
+
+    function joinGameRoom(room) {
+      lobby.classList.add('hidden');
+      gameArea.classList.remove('hidden');
+    }
+
+    function updateBoard(board) {
+      cells.forEach((cell, i) => {
+        cell.textContent = board[i];
+        cell.className = 'cell';
+        if (board[i] === 'X') cell.classList.add('x');
+        if (board[i] === 'O') cell.classList.add('o');
+      });
+    }
+
+    function updateScores(scores) {
+      myWinsSpan.textContent = scores.my_wins;
+      oppWinsSpan.textContent = scores.opponent_wins;
+      drawsSpan.textContent = scores.draws;
+    }
+  </script>
+</body>
+</html>

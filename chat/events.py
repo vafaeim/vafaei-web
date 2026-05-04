@@ -97,7 +97,7 @@ def handle_chat_message(data):
 
                 if reply_to:
                     cur.execute(
-                        """SELECT m.text, u.username AS sender_username
+                        """SELECT m.text, u.username AS sender_username, m.sender_id AS reply_sender_id
                         FROM messages m JOIN users u ON m.sender_id = u.id
                         WHERE m.id = %s""",
                         (reply_to,),
@@ -107,6 +107,7 @@ def handle_chat_message(data):
                         msg["reply_to"] = {
                             "text": reply_msg["text"],
                             "sender_username": reply_msg["sender_username"],
+                            "sender_id": reply_msg["reply_sender_id"],
                         }
 
                 cur.execute(

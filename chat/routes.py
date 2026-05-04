@@ -164,7 +164,8 @@ def get_messages(chat_id):
                               m.sender_id,
                               m.seen_by,
                               rm.text AS reply_text,
-                              ru.username AS reply_sender_username
+                              ru.username AS reply_sender_username,
+                              rm.sender_id AS reply_sender_id
                         FROM messages m
                         JOIN users u ON m.sender_id = u.id
                         LEFT JOIN messages rm ON m.reply_to_id = rm.id
@@ -183,7 +184,8 @@ def get_messages(chat_id):
                               m.sender_id,
                               m.seen_by,
                               rm.text AS reply_text,
-                              ru.username AS reply_sender_username
+                              ru.username AS reply_sender_username,
+                              rm.sender_id AS reply_sender_id
                         FROM messages m
                         JOIN users u ON m.sender_id = u.id
                         LEFT JOIN messages rm ON m.reply_to_id = rm.id
@@ -210,6 +212,7 @@ def get_messages(chat_id):
             "deleted": m["deleted"],
             "created_at": m["created_at"],
             "sender_username": m["sender_username"],
+            "sender_id": m["reply_sender_id"],
             "seen_by": m["seen_by"] or [],
         }
         if m["reply_to_id"] and m["reply_text"]:

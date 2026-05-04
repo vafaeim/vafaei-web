@@ -194,3 +194,99 @@ def handle_seen(data):
             )
     except RuntimeError:
         pass
+
+
+@socketio.on("send_group_message")
+def handle_group_message(data):
+    sender_id = session.get("user_id")
+    if not sender_id:
+        return
+
+    group_id = data.get("group_id")
+    text = data.get("text", "").strip()
+    reply_to = data.get("reply_to_message_id")
+
+    if not text and not reply_to:
+        return
+    if not group_id:
+        return
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT 1 FROM group_members WHERE group_id = %s AND user_id = %s",
+                    (group_id, sender_id),
+                )
+                if not cur.fetchone():
+                    return
+
+                cur.execute(
+                    """INSERT INTO group_messages (group_id, sender_id, text, reply_to_id)
+                    VALUES (%s, %s, %s, %s) RETURNING id, created_at, seen_by""",
+                    (group_id, sender_id, text, reply_to),
+                )
+                msg = cur.fetchone()
+                msg["text"] = text or ""
+                msg["group_id"] = group_id
+                msg["created_at"] = msg["created_at"].isoformat() + "Z"
+                msg["seen_by"] = msg["seen_by"] or []
+
+                cur.execute("SELECT username FROM users WHERE id = %s", (sender_id,))
+                user = cur.fetchone()
+                msg["sender_username"] = user["username"]
+                msg["sender_id"] = sender_id
+
+                if reply_to:
+                    cur.execute(
+                        """SELECT gm.text, u.username AS sender_username
+                        FROM group_messages gm JOIN users u ON gm.sender_id = u.id
+                        WHERE gm.id = %s""",
+                        (reply_to,),
+                    )
+                    reply_msg = cur.fetchone()
+                    if reply_msg:
+                        msg["reply_to"] = {
+                            "text": reply_msg["text"],
+                            "sender_username": reply_msg["sender_username"],
+                        }
+
+        emit("new_group_message", msg, room=f"group_{group_id}")
+    except RuntimeError:
+        emit("error", {"msg": "Database temporarily unavailable"})
+
+
+@socketio.on("join_group")
+def handle_join_group(data):
+    user_id = session.get("user_id")
+    group_id = data.get("group_id")
+    if user_id and group_id:
+        join_room(f"group_{group_id}")
+
+
+@socketio.on("group_seen")
+def handle_group_seen(data):
+    group_id = data.get("group_id")
+    user_id = session.get("user_id")
+    if not group_id or not user_id:
+        return
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE group_messages
+                    SET seen_by = seen_by || %s::jsonb
+                    WHERE group_id = %s
+                      AND sender_id != %s
+                      AND NOT seen_by @> %s::jsonb""",
+                    (json.dumps([user_id]), group_id, user_id, json.dumps([user_id])),
+                )
+                if cur.rowcount > 0:
+                    emit(
+                        "group_message_seen",
+                        {"user_id": user_id, "group_id": group_id},
+                        room=f"group_{group_id}",
+                        include_self=False,
+                    )
+    except RuntimeError:
+        pass

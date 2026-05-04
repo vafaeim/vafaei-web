@@ -797,6 +797,37 @@
         font-size: 0.7rem;
         cursor: pointer;
     }
+
+    .group-sender-name {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #60a5fa;
+        margin-bottom: 4px;
+    }
+
+    .member-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem;
+        border-radius: 0.5rem;
+        font-size: 0.9rem;
+        color: var(--text-primary);
+    }
+
+    .member-item .member-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--avatar-bg);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
@@ -805,6 +836,9 @@
       <div class="sidebar-header">
           <span class="title">Chats</span>
           <div style="display:flex;align-items:center;gap:0.3rem; position: relative;">
+              <button id="newGroupBtn" class="theme-toggle" title="New Group" style="font-size:1.2rem;">
+                  <i class="fa-solid fa-user-group"></i>
+              </button>
               <button id="settingsMenuBtn" class="theme-toggle" style="font-size:1.2rem;" title="Settings">
                   <i class="fa-solid fa-gear"></i>
               </button>
@@ -843,7 +877,18 @@
           <div class="header-avatar" id="headerAvatar"></div>
           <div class="chat-header-info">
               <span id="chatHeader"></span>
-              <span id="onlineStatus"></span>
+              <div style="display:flex; gap:0.5rem; align-items: center;">
+                  <span id="onlineStatus"></span>
+                  <button id="viewMembersBtn" style="display:none; background:none; border:none; color:var(--btn-color); cursor:pointer;">
+                      <i class="fa-solid fa-users"></i>
+                  </button>
+                  <button id="renameGroupBtn" style="display:none; background:none; border:none; color:var(--btn-color); cursor:pointer;" title="Rename Group">
+                      <i class="fa-solid fa-pen-to-square"></i>
+                  </button>
+                  <button id="inviteGroupBtn" style="display:none; background:none; border:none; color:var(--btn-color); cursor:pointer;" title="Invite Link">
+                      <i class="fa-solid fa-link"></i>
+                  </button>
+              </div>
           </div>
           <div class="header-spacer"></div>
       </div>
@@ -924,6 +969,27 @@
           <button id="closeSessionsModal" style="background:transparent; border:1px solid var(--border-color); color:var(--text-secondary); padding:0.4rem 1.2rem; border-radius:0.4rem; cursor:pointer; margin-top:1rem; width:100%;">Close</button>
       </div>
   </div>
+
+  <div id="newGroupModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:200; justify-content:center; align-items:center;">
+      <div style="background:var(--status-bar-bg); border:1px solid var(--border-color); border-radius:0.8rem; padding:1.5rem; width:90%; max-width:400px;">
+          <h3 style="color:var(--text-primary); margin-bottom:1rem;">New Group</h3>
+          <input type="text" id="groupNameInput" placeholder="Group name" style="width:100%; padding:0.6rem; background:var(--input-bg); border:1px solid var(--border-color); border-radius:0.8rem; color:var(--text-primary); margin-bottom:1rem; font-size:16px;">
+          <p style="color:var(--text-secondary); font-size:0.8rem; margin-bottom:0.5rem;">Search and select members:</p>
+          <input type="text" id="groupMemberSearch" placeholder="Search user..." oninput="searchMembersForGroup()" style="width:100%; padding:0.6rem; background:var(--input-bg); border:1px solid var(--border-color); border-radius:0.8rem; color:var(--text-primary); margin-bottom:0.5rem; font-size:0.9rem;">
+          <div id="groupMemberSearchResults" style="max-height:150px; overflow-y:auto; margin-bottom:0.5rem;"></div>
+          <div id="selectedMembers" style="display:flex; flex-wrap:wrap; gap:0.3rem; margin-bottom:1rem;"></div>
+          <button id="createGroupBtn" class="saveUsernameBtn" style="background:#2b5278; color:#fff; border:none; padding:0.5rem 1.5rem; border-radius:0.8rem; cursor:pointer; font-size:0.9rem; width:100%;">Create Group</button>
+          <button id="cancelGroupBtn" style="background:transparent; color:var(--btn-color); border:1px solid var(--border-color); padding:0.5rem 1.5rem; border-radius:0.8rem; cursor:pointer; margin-top:0.5rem; width:100%;">Cancel</button>
+      </div>
+  </div>
+
+  <div id="membersModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:200; justify-content:center; align-items:center;">
+      <div style="background:var(--status-bar-bg); border:1px solid var(--border-color); border-radius:0.8rem; padding:1.5rem; width:90%; max-width:350px; max-height:70vh; overflow-y:auto;">
+          <h3 style="color:var(--text-primary); margin-bottom:1rem; font-size:1rem;">Group Members</h3>
+          <div id="membersList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+          <button id="closeMembersModal" style="background:transparent; border:1px solid var(--border-color); color:var(--text-secondary); padding:0.4rem 1.2rem; border-radius:0.4rem; cursor:pointer; margin-top:1rem; width:100%;">Close</button>
+      </div>
+  </div>
   <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
   <script>
     const body = document.body;
@@ -956,6 +1022,8 @@
     let isEditing = false;
     let typingIndicator = document.getElementById('typingIndicator');
     const playDouzBtn = document.getElementById('playDouzBtn');
+    let activeChatType = 'private';
+    let selectedMembers = [];
 
     const mainChat = document.getElementById('mainChat');
     let swipeStartX = 0;
@@ -1180,7 +1248,25 @@
     });
 
     socket.on('connect', () => {
-      socket.emit('join_chat');
+        socket.emit('join_chat');
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        if (code) {
+            fetch('/api/join_group_by_code', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ code })
+            }).then(r => r.json()).then(data => {
+                if (data.success && data.group_id) {
+                    showToast('Joined group!', true);
+                    loadChats();
+                    openChat(data.group_id, 'group');
+                    window.history.replaceState({}, document.title, "/chat");
+                } else {
+                    showToast(data.error || 'Invalid invite');
+                }
+            });
+        }
     });
 
     socket.on('new_message', (msg) => {
@@ -1200,6 +1286,14 @@
         showToast('⚠️ ' + (data.msg || 'An error occurred'));
     });
 
+    socket.on('new_group_message', (msg) => {
+        if (activeChatId === msg.group_id && activeChatType === 'group') {
+            appendMessage(msg, msg.sender_username === currentUsername);
+            socket.emit('group_seen', { group_id: msg.group_id });
+        }
+        loadChats();
+    });
+
     socket.on('message_seen', (data) => {
         if (data.chat_id === activeChatId) {
             document.querySelectorAll('.message-row.sent .msg-ticks').forEach(tick => {
@@ -1213,6 +1307,13 @@
         if (data.user_id == otherUserId) {
             updateOnlineStatus(data);
         }
+    });
+
+    socket.on('group_renamed', (data) => {
+        if (activeChatId === data.group_id && activeChatType === 'group') {
+            document.getElementById('chatHeader').textContent = data.name;
+        }
+        loadChats();
     });
 
     function showToast(message, isSuccess = false) {
@@ -1274,61 +1375,118 @@
     }
 
     function loadChats() {
-      fetch('/api/chats')
-        .then(r => r.json())
-        .then(chats => {
-          const chatList = document.getElementById('chatList');
-          chatList.innerHTML = '';
-          chats.forEach(c => {
-              const item = document.createElement('div');
-              item.className = 'chat-item' + (activeChatId === c.id ? ' active' : '');
-              item.dataset.chatId = c.id;
-              item.dataset.otherUsername = c.other_username;
-              item.dataset.otherUserId = c.other_user_id;
-              item.addEventListener('click', function() {
-                  openChat(this);
-              });
-              const avatar = document.createElement('div');
-              avatar.className = 'avatar';
-              avatar.textContent = c.other_username[0].toUpperCase();
-              item.appendChild(avatar);
+        Promise.all([
+            fetch('/api/chats').then(r => r.json()),
+            fetch('/api/groups').then(r => r.json())
+        ]).then(([chats, groups]) => {
+            const chatList = document.getElementById('chatList');
+            chatList.innerHTML = '';
 
-              const infoDiv = document.createElement('div');
-              infoDiv.className = 'chat-info';
+            groups.forEach(g => {
+                const item = document.createElement('div');
+                const isActive = (activeChatId === g.id && activeChatType === 'group');
+                item.className = 'chat-item' + (isActive ? ' active' : '');
+                item.dataset.chatId = g.id;
+                item.dataset.otherUsername = g.name;
+                item.dataset.type = 'group';
 
-              const nameDiv = document.createElement('div');
-              nameDiv.className = 'chat-name';
-              nameDiv.textContent = c.other_username;
-              infoDiv.appendChild(nameDiv);
+                item.addEventListener('click', function() {
+                    openChat(this, 'group');
+                });
 
-              const lastMsg = document.createElement('div');
-              lastMsg.className = 'last-message';
-              lastMsg.textContent = c.last_message || '';
-              infoDiv.appendChild(lastMsg);
+                const avatar = document.createElement('div');
+                avatar.className = 'avatar';
+                avatar.textContent = g.name[0].toUpperCase();
+                item.appendChild(avatar);
 
-              item.appendChild(infoDiv);
-              const timeWrapper = document.createElement('div');
-              timeWrapper.className = 'chat-time-wrapper';
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'chat-info';
 
-              const timeDiv = document.createElement('span');
-              timeDiv.className = 'chat-time';
-              timeDiv.textContent = c.last_time
-                  ? new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                  : '';
-              timeWrapper.appendChild(timeDiv);
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'chat-name';
+                nameDiv.textContent = g.name;
+                infoDiv.appendChild(nameDiv);
 
-              if (c.unread_count > 0) {
-                  const badge = document.createElement('span');
-                  badge.className = 'unread-badge';
-                  badge.textContent = c.unread_count;
-                  timeWrapper.appendChild(badge);
-              }
+                const lastMsg = document.createElement('div');
+                lastMsg.className = 'last-message';
+                lastMsg.textContent = g.last_message || '';
+                infoDiv.appendChild(lastMsg);
 
-              item.appendChild(timeWrapper);
+                item.appendChild(infoDiv);
 
-              chatList.appendChild(item);
+                const timeWrapper = document.createElement('div');
+                timeWrapper.className = 'chat-time-wrapper';
+
+                const timeDiv = document.createElement('span');
+                timeDiv.className = 'chat-time';
+                timeDiv.textContent = g.last_time
+                    ? new Date(g.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : '';
+                timeWrapper.appendChild(timeDiv);
+
+                if (g.unread_count > 0) {
+                    const badge = document.createElement('span');
+                    badge.className = 'unread-badge';
+                    badge.textContent = g.unread_count;
+                    timeWrapper.appendChild(badge);
+                }
+
+                item.appendChild(timeWrapper);
+                chatList.appendChild(item);
+            });
+
+            chats.forEach(c => {
+                const item = document.createElement('div');
+                item.className = 'chat-item' + (activeChatId === c.id && activeChatType === 'private' ? ' active' : '');
+                item.dataset.chatId = c.id;
+                item.dataset.otherUsername = c.other_username;
+                item.dataset.otherUserId = c.other_user_id;
+                item.dataset.type = 'private';
+
+                item.addEventListener('click', function() {
+                    openChat(this);
+                });
+                const avatar = document.createElement('div');
+                avatar.className = 'avatar';
+                avatar.textContent = c.other_username[0].toUpperCase();
+                item.appendChild(avatar);
+
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'chat-info';
+
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'chat-name';
+                nameDiv.textContent = c.other_username;
+                infoDiv.appendChild(nameDiv);
+
+                const lastMsg = document.createElement('div');
+                lastMsg.className = 'last-message';
+                lastMsg.textContent = c.last_message || '';
+                infoDiv.appendChild(lastMsg);
+
+                item.appendChild(infoDiv);
+                const timeWrapper = document.createElement('div');
+                timeWrapper.className = 'chat-time-wrapper';
+
+                const timeDiv = document.createElement('span');
+                timeDiv.className = 'chat-time';
+                timeDiv.textContent = c.last_time
+                    ? new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : '';
+                timeWrapper.appendChild(timeDiv);
+
+                if (c.unread_count > 0) {
+                    const badge = document.createElement('span');
+                    badge.className = 'unread-badge';
+                    badge.textContent = c.unread_count;
+                    timeWrapper.appendChild(badge);
+                }
+
+                item.appendChild(timeWrapper);
+
+                chatList.appendChild(item);
+            });
           });
-        });
     }
 
     function updateOnlineStatus(status) {
@@ -1350,65 +1508,105 @@
         }
     }
 
-    function openChat(chatElementOrId) {
+    function openChat(chatElementOrId, type = 'private') {
         let chatId, initialUsername, initialUserId;
-        const el = (typeof chatElementOrId === 'object') ? chatElementOrId : null;
 
-        if (el) {
+        if (typeof chatElementOrId === 'object') {
+            const el = chatElementOrId;
             chatId = parseInt(el.dataset.chatId);
             initialUsername = el.dataset.otherUsername;
-            initialUserId = parseInt(el.dataset.otherUserId);
+            initialUserId = el.dataset.type === 'private' ? parseInt(el.dataset.otherUserId) : null;
+            type = el.dataset.type || type;
         } else {
             chatId = chatElementOrId;
         }
 
         activeChatId = chatId;
-        socket.emit('join_chat_room', { chat_id: chatId });
+        activeChatType = type;
+        document.getElementById('onlineStatus').textContent = '';
+        otherUserId = null;
+
+        if (type === 'group') {
+            socket.emit('join_group', { group_id: chatId });
+        } else {
+            socket.emit('join_chat_room', { chat_id: chatId });
+        }
         cancelReply();
 
         const mainChat = document.getElementById('mainChat');
         mainChat.classList.add('active');
         document.getElementById('inputArea').style.display = 'flex';
-        const msgContainer = document.getElementById('messagesContainer');
-        msgContainer.innerHTML = '';
+        document.getElementById('messagesContainer').innerHTML = '';
         oldestMessageId = null;
 
+        const headerEl = document.getElementById('chatHeader');
+        const avatarEl = document.getElementById('headerAvatar');
+        const membersCountEl = document.getElementById('groupMembersCount');
+        const viewMembersBtn = document.getElementById('viewMembersBtn');
+
         if (initialUsername) {
-            document.getElementById('chatHeader').textContent = initialUsername;
-            document.getElementById('headerAvatar').textContent = initialUsername[0].toUpperCase();
-            otherUserId = initialUserId;
-            document.getElementById('onlineStatus').textContent = '';
-            fetch('/api/user_status/' + otherUserId)
-                .then(r => r.json())
-                .then(status => updateOnlineStatus(status));
+            headerEl.textContent = initialUsername;
+            avatarEl.textContent = initialUsername[0].toUpperCase();
+            viewMembersBtn.style.display = 'none';
         } else {
-            document.getElementById('chatHeader').textContent = '...';
-            document.getElementById('headerAvatar').textContent = '...';
+            headerEl.textContent = '...';
+            avatarEl.textContent = '...';
         }
 
-        fetch('/api/chats').then(r => r.json()).then(chats => {
-            const chat = chats.find(c => c.id == chatId);
-            if (chat) {
-                if (!initialUsername) {
-                    document.getElementById('chatHeader').textContent = chat.other_username;
-                    document.getElementById('headerAvatar').textContent = chat.other_username[0].toUpperCase();
-                    otherUserId = chat.other_user_id;
-                    fetch('/api/user_status/' + otherUserId)
-                        .then(r => r.json())
-                        .then(status => updateOnlineStatus(status));
-                } else {
-                    if (!otherUserId) otherUserId = chat.other_user_id;
-                }
-            }
+        if (type === 'group') {
+            fetch(`/api/group_info/${chatId}`).then(r => r.json()).then(info => {
+                document.getElementById('chatHeader').textContent = info.name;
+                document.getElementById('headerAvatar').textContent = info.name[0].toUpperCase();
 
-            fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
+                const onlineEl = document.getElementById('onlineStatus');
+                onlineEl.textContent = info.member_count + ' members';
+                onlineEl.style.display = 'block';
+                viewMembersBtn.dataset.members = JSON.stringify(info.members);
+
+                viewMembersBtn.style.display = 'inline-block';
+                renameGroupBtn.style.display = 'inline-block';
+                inviteGroupBtn.style.display = 'inline-block';
+            });
+
+            fetch(`/api/group_messages/${chatId}?limit=${MESSAGE_LIMIT}`)
                 .then(r => r.json())
                 .then(messages => {
                     if (messages.length > 0) oldestMessageId = messages[0].id;
                     messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
-                    msgContainer.scrollTop = msgContainer.scrollHeight;
+                    document.getElementById('messagesContainer').scrollTop = document.getElementById('messagesContainer').scrollHeight;
                 });
-        });
+        } else {
+            if (initialUserId) {
+                otherUserId = initialUserId;
+                fetch('/api/user_status/' + otherUserId)
+                    .then(r => r.json())
+                    .then(status => updateOnlineStatus(status));
+            }
+            fetch('/api/chats').then(r => r.json()).then(chats => {
+                renameGroupBtn.style.display = 'none';
+                inviteGroupBtn.style.display = 'none';
+                const chat = chats.find(c => c.id == chatId);
+                if (chat) {
+                    if (!initialUsername) {
+                        document.getElementById('chatHeader').textContent = chat.other_username;
+                        document.getElementById('headerAvatar').textContent = chat.other_username[0].toUpperCase();
+                        otherUserId = chat.other_user_id;
+                        fetch('/api/user_status/' + otherUserId)
+                            .then(r => r.json())
+                            .then(status => updateOnlineStatus(status));
+                    } else {
+                        if (!otherUserId) otherUserId = chat.other_user_id;
+                    }
+                }
+                fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
+                    .then(r => r.json())
+                    .then(messages => {
+                        if (messages.length > 0) oldestMessageId = messages[0].id;
+                        messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
+                        document.getElementById('messagesContainer').scrollTop = document.getElementById('messagesContainer').scrollHeight;
+                    });
+            });
+        }
 
         const chatItem = document.querySelector(`.chat-item[data-chat-id="${chatId}"]`);
         if (chatItem) {
@@ -1416,7 +1614,8 @@
             if (badge) badge.remove();
         }
 
-        socket.emit('seen', { chat_id: chatId });
+        socket.emit(type === 'group' ? 'group_seen' : 'seen', { [type === 'group' ? 'group_id' : 'chat_id']: chatId });
+
         if (window.innerWidth < 700) {
             document.getElementById('sidebar').classList.add('hidden');
         }
@@ -1430,6 +1629,13 @@
         const bubble = document.createElement('div');
         bubble.className = 'bubble ' + (isSent ? 'sent' : 'received');
         bubble.setAttribute('dir', 'auto');
+
+        if (activeChatType === 'group' && !isSent) {
+            const senderName = document.createElement('div');
+            senderName.className = 'group-sender-name';
+            senderName.textContent = msg.sender_username;
+            bubble.appendChild(senderName);
+        }
 
         if (msg.deleted) {
             renderDeletedBubble(bubble);
@@ -1594,21 +1800,24 @@
     }
 
     function sendChatMessage() {
-      const input = document.getElementById('chatInput');
-      const text = input.value.trim();
-      if (!text && !replyToMessage) return;
-      if (!activeChatId) return;
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text && !replyToMessage) return;
+        if (!activeChatId) return;
 
-      const payload = { chat_id: activeChatId, text: text };
-      if (replyToMessage) {
-        payload.reply_to_message_id = replyToMessage.id;
-        cancelReply();
-      }
+        const payload = {
+            text: text,
+            [activeChatType === 'group' ? 'group_id' : 'chat_id']: activeChatId
+        };
+        if (replyToMessage) {
+            payload.reply_to_message_id = replyToMessage.id;
+            cancelReply();
+        }
 
-      socket.emit('send_chat_message', payload);
-      input.value = '';
-      autoResize(input);
-      input.focus();
+        socket.emit(activeChatType === 'group' ? 'send_group_message' : 'send_chat_message', payload);
+        input.value = '';
+        autoResize(input);
+        input.focus();
     }
 
     function autoResize(textarea) {
@@ -1841,6 +2050,169 @@
             sessionsList.appendChild(item);
         });
     }
+
+    document.getElementById('newGroupBtn').addEventListener('click', () => {
+        document.getElementById('newGroupModal').style.display = 'flex';
+        document.getElementById('groupNameInput').value = '';
+        document.getElementById('selectedMembers').innerHTML = '';
+        selectedMembers = [];
+    });
+
+    document.getElementById('cancelGroupBtn').addEventListener('click', () => {
+        document.getElementById('newGroupModal').style.display = 'none';
+    });
+
+    function searchMembersForGroup() {
+        const q = document.getElementById('groupMemberSearch').value.trim();
+        const resultsDiv = document.getElementById('groupMemberSearchResults');
+        if (!q) { resultsDiv.innerHTML = ''; return; }
+
+        fetch(`/api/search_users?q=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(users => {
+                resultsDiv.innerHTML = '';
+                users.forEach(u => {
+                    if (u.id === currentUserId || selectedMembers.some(m => m.id === u.id)) return;
+
+                    const div = document.createElement('div');
+                    div.className = 'search-result-item';
+                    div.textContent = u.username;
+                    div.addEventListener('click', () => {
+                        selectedMembers.push(u);
+                        renderSelectedMembers();
+                        resultsDiv.innerHTML = '';
+                        document.getElementById('groupMemberSearch').value = '';
+                    });
+                    resultsDiv.appendChild(div);
+                });
+            });
+    }
+
+    function renderSelectedMembers() {
+        const container = document.getElementById('selectedMembers');
+        container.innerHTML = '';
+        selectedMembers.forEach((m, idx) => {
+            const tag = document.createElement('span');
+            tag.style = 'display:inline-flex;align-items:center;background:var(--hover-bg);padding:0.2rem 0.5rem;border-radius:0.5rem;font-size:0.8rem;gap:0.3rem;';
+            tag.textContent = m.username;
+            const removeBtn = document.createElement('span');
+            removeBtn.textContent = '✕';
+            removeBtn.style = 'cursor:pointer;color:#ff4d4d;font-weight:bold;';
+            removeBtn.addEventListener('click', () => {
+                selectedMembers.splice(idx, 1);
+                renderSelectedMembers();
+            });
+            tag.appendChild(removeBtn);
+            container.appendChild(tag);
+        });
+    }
+
+    document.getElementById('createGroupBtn').addEventListener('click', async () => {
+        const name = document.getElementById('groupNameInput').value.trim();
+        if (!name) {
+            showToast('Please enter a group name');
+            return;
+        }
+        if (selectedMembers.length === 0) {
+            showToast('Add at least one member');
+            return;
+        }
+        try {
+            const resp = await fetch('/api/create_group', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name,
+                    members: selectedMembers.map(m => m.id)
+                })
+            });
+            if (resp.ok) {
+                document.getElementById('newGroupModal').style.display = 'none';
+                loadChats();
+                showToast('Group created', true);
+            } else {
+                const data = await resp.json();
+                showToast(data.error || 'Failed to create group');
+            }
+        } catch (e) {
+            showToast('Connection error');
+        }
+    });
+
+    const membersModal = document.getElementById('membersModal');
+    const membersList = document.getElementById('membersList');
+    const closeMembersModal = document.getElementById('closeMembersModal');
+    const viewMembersBtn = document.getElementById('viewMembersBtn');
+
+    viewMembersBtn.addEventListener('click', () => {
+        const membersData = viewMembersBtn.dataset.members;
+        if (!membersData) return;
+        const members = JSON.parse(membersData);
+
+        membersList.innerHTML = '';
+        members.forEach(member => {
+            const item = document.createElement('div');
+            item.className = 'member-item';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'member-avatar';
+            avatar.textContent = member.username[0].toUpperCase();
+            item.appendChild(avatar);
+
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = member.username;
+            item.appendChild(nameSpan);
+
+            if (member.id === currentUserId) {
+                const badge = document.createElement('span');
+                badge.textContent = '(You)';
+                badge.style.fontSize = '0.7rem';
+                badge.style.color = 'var(--text-secondary)';
+                item.appendChild(badge);
+            }
+
+            membersList.appendChild(item);
+        });
+
+        membersModal.style.display = 'flex';
+    });
+
+    closeMembersModal.addEventListener('click', () => {
+        membersModal.style.display = 'none';
+    });
+
+    const renameGroupBtn = document.getElementById('renameGroupBtn');
+
+    renameGroupBtn.addEventListener('click', () => {
+        const newName = prompt('Enter new group name:');
+        if (newName && newName.trim() !== '') {
+            fetch(`/api/rename_group/${activeChatId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ name: newName.trim() })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    document.getElementById('chatHeader').textContent = newName.trim();
+                    loadChats();
+                } else {
+                    showToast(data.error || 'Failed to rename');
+                }
+            });
+        }
+    });
+
+    const inviteGroupBtn = document.getElementById('inviteGroupBtn');
+
+    inviteGroupBtn.addEventListener('click', async () => {
+        const resp = await fetch(`/api/group_invite/${activeChatId}`);
+        const data = await resp.json();
+        if (data.invite_code) {
+            navigator.clipboard.writeText(data.link);
+            showToast('Invite link copied!', true);
+        } else {
+            showToast('Failed to get invite link');
+        }
+    });
   </script>
 </body>
 </html>

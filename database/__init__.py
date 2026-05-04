@@ -112,6 +112,40 @@ def init_db():
                 cur.execute(
                     "CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)"
                 )
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS groups_chat (
+                        id SERIAL PRIMARY KEY,
+                        name VARCHAR(100) NOT NULL,
+                        creator_id INT REFERENCES users(id),
+                        avatar_url VARCHAR,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS group_members (
+                        group_id INT REFERENCES groups_chat(id) ON DELETE CASCADE,
+                        user_id INT REFERENCES users(id) ON DELETE CASCADE,
+                        joined_at TIMESTAMP DEFAULT NOW(),
+                        is_admin BOOLEAN DEFAULT FALSE,
+                        PRIMARY KEY(group_id, user_id)
+                    );
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS group_messages (
+                        id SERIAL PRIMARY KEY,
+                        group_id INT REFERENCES groups_chat(id) ON DELETE CASCADE,
+                        sender_id INT REFERENCES users(id),
+                        text TEXT NOT NULL,
+                        reply_to_id INT REFERENCES group_messages(id),
+                        edited BOOLEAN DEFAULT FALSE,
+                        deleted BOOLEAN DEFAULT FALSE,
+                        seen_by JSONB DEFAULT '[]'::jsonb,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    );
+                """)
+                cur.execute(
+                    "ALTER TABLE groups_chat ADD COLUMN IF NOT EXISTS invite_code VARCHAR(16) UNIQUE"
+                )
         print("INFO: Database initialized successfully.")
     except RuntimeError:
         print("WARNING: Could not initialize database – pool not available.")

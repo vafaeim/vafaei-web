@@ -2,7 +2,7 @@ import os
 from extensions import app, socketio, init_pool
 from database import init_db
 from scheduler import start_scheduler
-from flask import render_template
+from flask import request, redirect, url_for, session
 
 from auth import auth_bp
 from chat import chat_bp
@@ -18,6 +18,16 @@ app.register_blueprint(douz_bp)
 @app.route("/")
 def index():
     return render_template("main.html")
+
+
+@app.route("/join")
+def join_via_invite():
+    code = request.args.get("code", "")
+    if not code:
+        return "Missing invite code", 400
+    if "user_id" not in session:
+        return redirect(url_for("auth.login", next=request.url))
+    return redirect(url_for("chat.chat_page") + f"?code={code}")
 
 
 with app.app_context():

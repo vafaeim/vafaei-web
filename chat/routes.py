@@ -5,6 +5,7 @@ from extensions import app, socketio
 from database import database
 import psycopg2.extras
 import psycopg2.errors
+import urllib.parse
 from .events import get_online_users
 from . import chat_bp
 
@@ -387,5 +388,326 @@ def terminate_session(token):
                         {"error": "Session not found or not authorized"}
                     ), 404
         return jsonify({"success": True})
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/create_group", methods=["POST"])
+def create_group():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.get_json()
+    name = data.get("name", "").strip()
+    member_ids = data.get("members", [])
+
+    if not name:
+        return jsonify({"error": "Group name required"}), 400
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "INSERT INTO groups_chat (name, creator_id) VALUES (%s, %s) RETURNING id",
+                    (name, user_id),
+                )
+                group = cur.fetchone()
+                group_id = group["id"]
+
+                cur.execute(
+                    "INSERT INTO group_members (group_id, user_id, is_admin) VALUES (%s, %s, TRUE)",
+                    (group_id, user_id),
+                )
+
+                for member_id in member_ids:
+                    if member_id != user_id:
+                        cur.execute(
+                            "INSERT INTO group_members (group_id, user_id) VALUES (%s, %s)",
+                            (group_id, member_id),
+                        )
+
+        socketio.emit(
+            "new_group", {"group_id": group_id, "name": name}, room=f"user_{user_id}"
+        )
+        for mid in member_ids:
+            socketio.emit(
+                "new_group", {"group_id": group_id, "name": name}, room=f"user_{mid}"
+            )
+
+        return jsonify({"success": True, "group_id": group_id})
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/groups")
+def get_groups():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify([])
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT g.id, g.name, g.avatar_url,
+                           (SELECT text FROM group_messages gm WHERE gm.group_id = g.id AND deleted = FALSE ORDER BY created_at DESC LIMIT 1) AS last_message,
+                           (SELECT created_at FROM group_messages gm WHERE gm.group_id = g.id AND deleted = FALSE ORDER BY created_at DESC LIMIT 1) AS last_time,
+                           (SELECT COUNT(*) FROM group_messages gm WHERE gm.group_id = g.id AND gm.sender_id != %s AND NOT (gm.seen_by @> to_jsonb(%s::int))) AS unread_count
+                    FROM groups_chat g
+                    JOIN group_members gm ON g.id = gm.group_id
+                    WHERE gm.user_id = %s
+                    ORDER BY last_time DESC NULLS LAST
+                """,
+                    (user_id, user_id, user_id),
+                )
+                groups = cur.fetchall()
+                for g in groups:
+                    if g.get("last_time"):
+                        g["last_time"] = g["last_time"].isoformat() + "Z"
+        return jsonify(groups)
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/group_messages/<int:group_id>")
+def get_group_messages(group_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify([])
+
+    before_id = request.args.get("before_id", type=int)
+    limit = min(request.args.get("limit", 50, type=int), 100)
+
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM group_members WHERE group_id = %s AND user_id = %s",
+                    (group_id, user_id),
+                )
+                if not cur.fetchone():
+                    return jsonify([])
+
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                if before_id:
+                    cur.execute(
+                        """
+                        SELECT gm.id, gm.text, gm.created_at, gm.reply_to_id,
+                               u.username AS sender_username, gm.sender_id, gm.seen_by, gm.edited, gm.deleted,
+                               rm.text AS reply_text,
+                               ru.username AS reply_sender_username
+                        FROM group_messages gm
+                        JOIN users u ON gm.sender_id = u.id
+                        LEFT JOIN group_messages rm ON gm.reply_to_id = rm.id
+                        LEFT JOIN users ru ON rm.sender_id = ru.id
+                        WHERE gm.group_id = %s AND gm.id < %s
+                        ORDER BY gm.id DESC LIMIT %s
+                    """,
+                        (group_id, before_id, limit),
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT gm.id, gm.text, gm.created_at, gm.reply_to_id,
+                               u.username AS sender_username, gm.sender_id, gm.seen_by, gm.edited, gm.deleted,
+                               rm.text AS reply_text,
+                               ru.username AS reply_sender_username
+                        FROM group_messages gm
+                        JOIN users u ON gm.sender_id = u.id
+                        LEFT JOIN group_messages rm ON gm.reply_to_id = rm.id
+                        LEFT JOIN users ru ON rm.sender_id = ru.id
+                        WHERE gm.group_id = %s
+                        ORDER BY gm.id DESC LIMIT %s
+                    """,
+                        (group_id, limit),
+                    )
+                messages = cur.fetchall()
+                messages.reverse()
+
+        result = []
+        for m in messages:
+            m["created_at"] = m["created_at"].isoformat() + "Z"
+            msg_dict = {
+                "id": m["id"],
+                "sender_id": m["sender_id"],
+                "text": m["text"],
+                "created_at": m["created_at"],
+                "sender_username": m["sender_username"],
+                "seen_by": m["seen_by"] or [],
+                "edited": m["edited"],
+                "deleted": m["deleted"],
+            }
+            if m["reply_to_id"] and m["reply_text"]:
+                msg_dict["reply_to"] = {
+                    "text": m["reply_text"],
+                    "sender_username": m["reply_sender_username"],
+                }
+            result.append(msg_dict)
+        return jsonify(result)
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/group_info/<int:group_id>")
+def group_info(group_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT g.id, g.name, g.avatar_url, g.creator_id,
+                           (SELECT COUNT(*) FROM group_members WHERE group_id = g.id) AS member_count
+                    FROM groups_chat g
+                    JOIN group_members gm ON g.id = gm.group_id
+                    WHERE g.id = %s AND gm.user_id = %s
+                """,
+                    (group_id, user_id),
+                )
+                group = cur.fetchone()
+                if not group:
+                    return jsonify({"error": "Group not found"}), 404
+
+                cur.execute(
+                    """
+                    SELECT u.id, u.username
+                    FROM users u
+                    JOIN group_members gm ON u.id = gm.user_id
+                    WHERE gm.group_id = %s
+                """,
+                    (group_id,),
+                )
+                members = cur.fetchall()
+                group["members"] = members
+        return jsonify(group)
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/rename_group/<int:group_id>", methods=["PUT"])
+def rename_group(group_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.get_json()
+    new_name = data.get("name", "").strip()
+    if not new_name:
+        return jsonify({"error": "New name required"}), 400
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT is_admin FROM group_members WHERE group_id = %s AND user_id = %s",
+                    (group_id, user_id),
+                )
+                member = cur.fetchone()
+                if not member or not member["is_admin"]:
+                    cur.execute(
+                        "SELECT creator_id FROM groups_chat WHERE id = %s", (group_id,)
+                    )
+                    group = cur.fetchone()
+                    if not group or group["creator_id"] != user_id:
+                        return jsonify({"error": "Not authorized"}), 403
+
+                cur.execute(
+                    "UPDATE groups_chat SET name = %s WHERE id = %s",
+                    (new_name, group_id),
+                )
+        socketio.emit(
+            "group_renamed",
+            {"group_id": group_id, "name": new_name},
+            room=f"group_{group_id}",
+        )
+        return jsonify({"success": True})
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/group_invite/<int:group_id>", methods=["GET"])
+def get_group_invite(group_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT 1 FROM group_members WHERE group_id = %s AND user_id = %s",
+                    (group_id, user_id),
+                )
+                if not cur.fetchone():
+                    return jsonify({"error": "Not a member"}), 403
+
+                cur.execute(
+                    "SELECT invite_code FROM groups_chat WHERE id = %s", (group_id,)
+                )
+                group = cur.fetchone()
+                code = group["invite_code"]
+                if not code:
+                    import secrets, string
+
+                    code = "".join(
+                        secrets.choice(string.ascii_letters + string.digits)
+                        for _ in range(10)
+                    )
+                    cur.execute(
+                        "UPDATE groups_chat SET invite_code = %s WHERE id = %s",
+                        (code, group_id),
+                    )
+
+                return jsonify(
+                    {
+                        "invite_code": code,
+                        "link": f"{request.host_url}join?code={urllib.parse.quote(code)}",
+                    }
+                )
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/join_group_by_code", methods=["POST"])
+def join_group_by_code():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    code = request.json.get("code", "").strip()
+    if not code:
+        return jsonify({"error": "Code required"}), 400
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id FROM groups_chat WHERE invite_code = %s", (code,)
+                )
+                group = cur.fetchone()
+                if not group:
+                    return jsonify({"error": "Invalid invite code"}), 404
+
+                group_id = group["id"]
+                cur.execute(
+                    "SELECT 1 FROM group_members WHERE group_id = %s AND user_id = %s",
+                    (group_id, user_id),
+                )
+                if cur.fetchone():
+                    return jsonify({"error": "Already a member"}), 400
+
+                cur.execute(
+                    "INSERT INTO group_members (group_id, user_id) VALUES (%s, %s)",
+                    (group_id, user_id),
+                )
+        socketio.emit(
+            "new_group", {"group_id": group_id, "name": ""}, room=f"user_{user_id}"
+        )
+        return jsonify({"success": True, "group_id": group_id})
     except RuntimeError:
         return jsonify({"error": "Database unavailable"}), 503

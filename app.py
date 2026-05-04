@@ -2,7 +2,7 @@ import os
 from extensions import app, socketio, init_pool
 from database import init_db
 from scheduler import start_scheduler
-from flask import request, redirect, url_for, session
+from flask import request, redirect, url_for, session, render_template
 
 from auth import auth_bp
 from chat import chat_bp

@@ -29,6 +29,8 @@
       --game-invite-button-bg: #2b5278;
       --game-invite-button-text: #fff;
       --avatar-bg: #2b5278;
+      --scrollbar-thumb: linear-gradient(180deg, #2b9cff, #6c5ce7);
+      --scrollbar-thumb-hover: linear-gradient(180deg, #1a8ae0, #5a4bd1);
     }
     body.light-mode {
       --bg: #f5f5f5;
@@ -53,6 +55,32 @@
       --avatar-bg: #547a9a;
       --btn-color: #4a4a4a;
       --btn-hover-bg: #e0e0e0;
+      --scrollbar-thumb: linear-gradient(180deg, #2563eb, #7c3aed);
+      --scrollbar-thumb-hover: linear-gradient(180deg, #1d4ed8, #6d28d9);
+    }
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--scrollbar-thumb);
+        border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--scrollbar-thumb-hover);
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        scrollbar-width: thin;
+        scrollbar-color: #2b9cff transparent;
     }
     html, body {
       height: 100%;
@@ -61,7 +89,6 @@
       overflow: hidden;
       font-family: 'Vazirmatn', Tahoma, sans-serif;
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       background: var(--bg);
       display: flex;
@@ -180,6 +207,7 @@
       font-size: 1rem;
       font-weight: 600;
       color: var(--text-primary);
+      text-align: start;
     }
 
     .chat-item .last-message {
@@ -188,6 +216,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      text-align: start;
     }
 
     .chat-item .chat-time {
@@ -200,7 +229,7 @@
       display: flex;
       flex-direction: column;
       background: var(--chat-bg);
-      transition: background var(--transition);
+      transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1.2);
       position: relative;
     }
 
@@ -301,6 +330,30 @@
     .message-row {
       display: flex;
       position: relative;
+    }
+
+    .message-row .bubble {
+        transition: transform 0.15s ease-out;
+    }
+
+    .message-row .swipe-indicator {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #2b9cff;
+        font-size: 1.4rem;
+        opacity: 0;
+        transition: opacity 0.2s;
+        pointer-events: none;
+    }
+
+    .message-row.swiped .bubble {
+        transform: translateX(-34px);
+    }
+
+    .message-row.swiped .swipe-indicator {
+        opacity: 1;
     }
 
     .message-row.sent {
@@ -828,6 +881,43 @@
         font-size: 0.8rem;
         flex-shrink: 0;
     }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        cursor: pointer;
+        user-select: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .section-header .section-arrow {
+        transition: transform 0.2s;
+        font-size: 0.7rem;
+    }
+
+    .section-header .section-arrow.collapsed {
+        transform: rotate(-90deg);
+    }
+
+    .section-unread {
+        margin-left: auto;
+        font-size: 0.65rem;
+        background: #2b9cff;
+        color: #fff;
+        padding: 0.1rem 0.5rem;
+        border-radius: 1rem;
+        min-width: 18px;
+        text-align: center;
+    }
+
+    .section-list {
+        display: block;
+    }
   </style>
 </head>
 <body>
@@ -863,10 +953,27 @@
           </div>
       </div>
       <div class="search-box">
-        <input type="text" id="searchUserInput" placeholder="Search user..." oninput="searchUsers()">
+        <input type="text" id="searchUserInput" placeholder="Search" oninput="searchUsers()">
       </div>
       <div class="search-results" id="searchResults"></div>
-      <div class="chat-list" id="chatList"></div>
+      <div class="chat-list" id="chatList">
+          <div class="chat-section" id="groupsSection">
+              <div class="section-header" onclick="toggleSection('groups')">
+                  <i class="fa-solid fa-chevron-down section-arrow" id="groupsArrow"></i>
+                  <span>Groups</span>
+                  <span class="section-unread" id="groupsUnread" style="display:none;"></span>
+              </div>
+              <div class="section-list" id="groupsList"></div>
+          </div>
+          <div class="chat-section" id="chatsSection">
+              <div class="section-header" onclick="toggleSection('chats')">
+                  <i class="fa-solid fa-chevron-down section-arrow" id="chatsArrow"></i>
+                  <span>Direct Messages</span>
+                  <span class="section-unread" id="chatsUnread" style="display:none;"></span>
+              </div>
+              <div class="section-list" id="chatsList"></div>
+          </div>
+      </div>
     </div>
 
     <div class="main-chat" id="mainChat">
@@ -1039,8 +1146,16 @@
         const touchEndY = e.changedTouches[0].screenY;
         const dx = touchEndX - swipeStartX;
         const dy = touchEndY - swipeStartY;
+
         if (Math.abs(dx) > Math.abs(dy) && dx > 60 && window.innerWidth < 700) {
-            backToChats();
+            mainChat.style.transition = 'transform 0.25s ease-out';
+            mainChat.style.transform = 'translateX(100%)';
+
+            setTimeout(() => {
+                mainChat.style.transition = '';
+                mainChat.style.transform = '';
+                backToChats();
+            }, 250);
         }
     });
 
@@ -1374,15 +1489,32 @@
       });
     }
 
+    function toggleSection(type) {
+        const list = document.getElementById(type === 'groups' ? 'groupsList' : 'chatsList');
+        const arrow = document.getElementById(type === 'groups' ? 'groupsArrow' : 'chatsArrow');
+        if (list.style.display === 'none') {
+            list.style.display = 'block';
+            arrow.classList.remove('collapsed');
+        } else {
+            list.style.display = 'none';
+            arrow.classList.add('collapsed');
+        }
+    }
+
     function loadChats() {
         Promise.all([
             fetch('/api/chats').then(r => r.json()),
             fetch('/api/groups').then(r => r.json())
         ]).then(([chats, groups]) => {
-            const chatList = document.getElementById('chatList');
-            chatList.innerHTML = '';
+            const groupsList = document.getElementById('groupsList');
+            const chatsList = document.getElementById('chatsList');
+            groupsList.innerHTML = '';
+            chatsList.innerHTML = '';
+
+            let groupsUnread = 0;
 
             groups.forEach(g => {
+                groupsUnread += g.unread_count || 0;
                 const item = document.createElement('div');
                 const isActive = (activeChatId === g.id && activeChatType === 'group');
                 item.className = 'chat-item' + (isActive ? ' active' : '');
@@ -1405,11 +1537,13 @@
                 const nameDiv = document.createElement('div');
                 nameDiv.className = 'chat-name';
                 nameDiv.textContent = g.name;
+                nameDiv.setAttribute('dir', 'auto');
                 infoDiv.appendChild(nameDiv);
 
                 const lastMsg = document.createElement('div');
                 lastMsg.className = 'last-message';
                 lastMsg.textContent = g.last_message || '';
+                lastMsg.setAttribute('dir', 'auto');
                 infoDiv.appendChild(lastMsg);
 
                 item.appendChild(infoDiv);
@@ -1432,10 +1566,13 @@
                 }
 
                 item.appendChild(timeWrapper);
-                chatList.appendChild(item);
+                groupsList.appendChild(item);
             });
 
+            let chatsUnread = 0;
+
             chats.forEach(c => {
+                chatsUnread += c.unread_count || 0;
                 const item = document.createElement('div');
                 item.className = 'chat-item' + (activeChatId === c.id && activeChatType === 'private' ? ' active' : '');
                 item.dataset.chatId = c.id;
@@ -1446,6 +1583,7 @@
                 item.addEventListener('click', function() {
                     openChat(this);
                 });
+
                 const avatar = document.createElement('div');
                 avatar.className = 'avatar';
                 avatar.textContent = c.other_username[0].toUpperCase();
@@ -1465,6 +1603,7 @@
                 infoDiv.appendChild(lastMsg);
 
                 item.appendChild(infoDiv);
+
                 const timeWrapper = document.createElement('div');
                 timeWrapper.className = 'chat-time-wrapper';
 
@@ -1483,10 +1622,17 @@
                 }
 
                 item.appendChild(timeWrapper);
-
-                chatList.appendChild(item);
+                chatsList.appendChild(item);
             });
-          });
+
+            const groupsBadge = document.getElementById('groupsUnread');
+            groupsBadge.textContent = groupsUnread > 0 ? groupsUnread : '';
+            groupsBadge.style.display = groupsUnread > 0 ? 'inline' : 'none';
+
+            const chatsBadge = document.getElementById('chatsUnread');
+            chatsBadge.textContent = chatsUnread > 0 ? chatsUnread : '';
+            chatsBadge.style.display = chatsUnread > 0 ? 'inline' : 'none';
+        });
     }
 
     function updateOnlineStatus(status) {
@@ -1625,6 +1771,11 @@
         const row = document.createElement('div');
         row.className = 'message-row ' + (isSent ? 'sent' : 'received');
         row.dataset.messageId = msg.id;
+
+        const swipeIndicator = document.createElement('div');
+        swipeIndicator.className = 'swipe-indicator';
+        swipeIndicator.innerHTML = '<i class="fa-solid fa-reply"></i>';
+        row.appendChild(swipeIndicator);
 
         const bubble = document.createElement('div');
         bubble.className = 'bubble ' + (isSent ? 'sent' : 'received');
@@ -1784,6 +1935,50 @@
         }
 
         row.appendChild(bubble);
+
+        let swipeStartX = 0, swipeStartY = 0, swipeMoved = false;
+
+        row.addEventListener('touchstart', (e) => {
+            swipeStartX = e.changedTouches[0].screenX;
+            swipeStartY = e.changedTouches[0].screenY;
+            swipeMoved = false;
+        }, { passive: true });
+
+        row.addEventListener('touchmove', (e) => {
+            const touchX = e.changedTouches[0].screenX;
+            const touchY = e.changedTouches[0].screenY;
+            const dx = touchX - swipeStartX;
+            const dy = touchY - swipeStartY;
+
+            if (Math.abs(dx) > Math.abs(dy) && dx < -10) {
+                e.preventDefault();
+                swipeMoved = true;
+                const translateX = Math.max(dx, -40);
+                bubble.style.transform = `translateX(${translateX}px)`;
+                row.classList.add('swiped');
+            }
+        }, { passive: false });
+
+        row.addEventListener('touchend', (e) => {
+            if (!swipeMoved) return;
+
+            const touchEndX = e.changedTouches[0].screenX;
+            const dx = touchEndX - swipeStartX;
+
+            bubble.style.transform = '';
+            row.classList.remove('swiped');
+            swipeMoved = false;
+
+            if (dx < -50) {
+                e.stopPropagation();
+                replyToMessage = msg;
+                const previewText = msg.text.length > 40 ? msg.text.substring(0, 40) + '...' : msg.text;
+                document.getElementById('replyText').textContent = '↩ ' + previewText;
+                document.getElementById('replyPreview').classList.add('active');
+                document.getElementById('chatInput').focus();
+            }
+        });
+
         return row;
     }
 
@@ -2077,6 +2272,7 @@
                     const div = document.createElement('div');
                     div.className = 'search-result-item';
                     div.textContent = u.username;
+                    div.setAttribute('dir', 'auto');
                     div.addEventListener('click', () => {
                         selectedMembers.push(u);
                         renderSelectedMembers();

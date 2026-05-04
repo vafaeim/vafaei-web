@@ -159,7 +159,19 @@ def verify_otp():
                     user_id = existing_user["id"]
                     display_name = existing_user["username"] or rubika_first_name
                     session["user_id"] = user_id
+                    session.permanent = True
+                    session_token = secrets.token_hex(32)
+                    session["session_token"] = session_token
                     session["username"] = display_name
+                    cur.execute(
+                        "INSERT INTO sessions (user_id, token, ip, user_agent) VALUES (%s, %s, %s, %s)",
+                        (
+                            user_id,
+                            session_token,
+                            request.remote_addr,
+                            request.headers.get("User-Agent", ""),
+                        ),
+                    )
                     update_last_seen(session["user_id"])
                     return jsonify({"success": True, "new_user": False})
                 else:
@@ -243,7 +255,19 @@ def login_password():
                 if user and user["password_hash"]:
                     if check_password_hash(user["password_hash"], password):
                         session["user_id"] = user["id"]
+                        session.permanent = True
+                        session_token = secrets.token_hex(32)
+                        session["session_token"] = session_token
                         session["username"] = user["username"]
+                        cur.execute(
+                            "INSERT INTO sessions (user_id, token, ip, user_agent) VALUES (%s, %s, %s, %s)",
+                            (
+                                user["id"],
+                                session_token,
+                                request.remote_addr,
+                                request.headers.get("User-Agent", ""),
+                            ),
+                        )
                         update_last_seen(session["user_id"])
                         return jsonify({"success": True})
 
@@ -266,3 +290,20 @@ def set_password_page():
     if "user_id" not in session:
         return redirect(url_for("auth.login"))
     return render_template("set_password.html")
+
+
+@auth_bp.route("/api/logout", methods=["POST"])
+def logout():
+    user_id = session.get("user_id")
+    if user_id:
+        try:
+            with database() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM sessions WHERE token = %s",
+                        (session.get("session_token"),),
+                    )
+        except Exception:
+            pass
+    session.clear()
+    return jsonify({"success": True})

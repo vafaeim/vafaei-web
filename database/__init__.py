@@ -87,6 +87,31 @@ def init_db():
                 cur.execute(
                     "ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE"
                 )
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        id SERIAL PRIMARY KEY,
+                        user_id INT REFERENCES users(id) ON DELETE CASCADE,
+                        token VARCHAR(64),
+                        ip VARCHAR(45),
+                        user_agent TEXT,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    );
+                """)
+                cur.execute(
+                    "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS token VARCHAR(64)"
+                )
+                cur.execute("ALTER TABLE sessions DROP COLUMN IF EXISTS session_id")
+                cur.execute("""
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE table_name = 'sessions' AND constraint_name = 'sessions_token_unique'
+                """)
+                if not cur.fetchone():
+                    cur.execute(
+                        "ALTER TABLE sessions ADD CONSTRAINT sessions_token_unique UNIQUE (token)"
+                    )
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)"
+                )
         print("INFO: Database initialized successfully.")
     except RuntimeError:
         print("WARNING: Could not initialize database – pool not available.")

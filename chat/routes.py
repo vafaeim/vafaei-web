@@ -103,22 +103,27 @@ def get_chats():
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     """
-                SELECT c.id,
+                    SELECT c.id,
                         CASE WHEN c.user1_id = %s THEN u2.id ELSE u1.id END AS other_user_id,
                         CASE WHEN c.user1_id = %s THEN u2.username ELSE u1.username END AS other_username,
                         (SELECT text FROM messages WHERE chat_id = c.id AND deleted = FALSE ORDER BY created_at DESC LIMIT 1) AS last_message,
-                        (SELECT created_at FROM messages WHERE chat_id = c.id AND deleted = FALSE ORDER BY created_at DESC LIMIT 1) AS last_time
-                FROM chats c
-                JOIN users u1 ON c.user1_id = u1.id
-                JOIN users u2 ON c.user2_id = u2.id
-                WHERE c.user1_id = %s OR c.user2_id = %s
-                ORDER BY last_time DESC NULLS LAST
-            """,
-                    (my_id, my_id, my_id, my_id),
+                        (SELECT created_at FROM messages WHERE chat_id = c.id AND deleted = FALSE ORDER BY created_at DESC LIMIT 1) AS last_time,
+                        (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id
+                            AND m.sender_id != %s
+                            AND NOT (m.seen_by @> to_jsonb(%s::int))
+                        ) AS unread_count
+                    FROM chats c
+                    JOIN users u1 ON c.user1_id = u1.id
+                    JOIN users u2 ON c.user2_id = u2.id
+                    WHERE c.user1_id = %s OR c.user2_id = %s
+                    ORDER BY last_time DESC NULLS LAST
+                """,
+                    (my_id, my_id, my_id, my_id, my_id, my_id),
                 )
                 chats = cur.fetchall()
                 for c in chats:
                     if c.get("last_time"):
+                        c["unread_count"] = c.get("unread_count", 0) or 0
                         c["last_time"] = (
                             c["last_time"].isoformat() + "Z"
                             if c.get("last_time")
@@ -331,6 +336,56 @@ def delete_message(message_id):
             room=f"chat_{msg['chat_id']}",
         )
 
+        return jsonify({"success": True})
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/sessions")
+def get_sessions():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT token, ip, user_agent, created_at,
+                           (token = %s) AS is_current
+                    FROM sessions
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                """,
+                    (session.get("session_token"), user_id),
+                )
+                sessions_list = cur.fetchall()
+        for s in sessions_list:
+            s["created_at"] = s["created_at"].isoformat()
+            s["is_current"] = bool(s["is_current"])
+        return jsonify(sessions_list)
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/sessions/<token>", methods=["DELETE"])
+def terminate_session(token):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM sessions WHERE token = %s AND user_id = %s",
+                    (token, user_id),
+                )
+                if cur.rowcount == 0:
+                    return jsonify(
+                        {"error": "Session not found or not authorized"}
+                    ), 404
         return jsonify({"success": True})
     except RuntimeError:
         return jsonify({"error": "Database unavailable"}), 503

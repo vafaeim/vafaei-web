@@ -243,6 +243,36 @@
         flex-shrink: 0;
     }
 
+    .chat-time-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        flex-shrink: 0;
+        margin-left: 0.4rem;
+    }
+
+    .chat-time {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+    }
+
+    .unread-badge {
+        background: #2b9cff;
+        color: #fff;
+        border-radius: 50%;
+        min-width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.6rem;
+        font-weight: 700;
+        padding: 0 5px;
+        line-height: 1;
+    }
+
     .back-btn {
         display: none;
         background: none;
@@ -732,6 +762,41 @@
         flex-shrink: 0;
         box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     }
+
+    .session-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        font-size: 0.8rem;
+        color: var(--text-primary);
+    }
+
+    .session-item .session-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .session-item .session-badge {
+        font-size: 0.65rem;
+        background: var(--hover-bg);
+        padding: 0.1rem 0.4rem;
+        border-radius: 0.3rem;
+    }
+
+    .session-item button {
+        background: #ff4d4d;
+        color: #fff;
+        border: none;
+        border-radius: 0.3rem;
+        padding: 0.3rem 0.6rem;
+        font-size: 0.7rem;
+        cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -753,6 +818,12 @@
                   <div style="height:1px; background:var(--border-color); margin:0.3rem 0;"></div>
                   <button class="dropdown-item" onclick="toggleTheme()">
                       <i class="fa-solid fa-circle-half-stroke"></i> Switch Theme
+                  </button>
+                  <button id="sessionsSidebarBtn" class="dropdown-item">
+                      <i class="fa-solid fa-desktop"></i> Sessions
+                  </button>
+                  <button id="logoutSidebarBtn" class="dropdown-item">
+                      <i class="fa-solid fa-right-from-bracket"></i> Logout
                   </button>
               </div>
           </div>
@@ -845,6 +916,14 @@
           </div>
       </div>
   </div>
+
+  <div id="sessionsModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:200; justify-content:center; align-items:center;">
+      <div style="background:var(--status-bar-bg); border:1px solid var(--border-color); border-radius:0.8rem; padding:1.5rem; width:90%; max-width:400px; max-height:80vh; overflow-y:auto;">
+          <h3 style="color:var(--text-primary); margin-bottom:1rem; font-size:1.1rem;">Active Sessions</h3>
+          <div id="sessionsList" style="display:flex; flex-direction:column; gap:0.8rem;"></div>
+          <button id="closeSessionsModal" style="background:transparent; border:1px solid var(--border-color); color:var(--text-secondary); padding:0.4rem 1.2rem; border-radius:0.4rem; cursor:pointer; margin-top:1rem; width:100%;">Close</button>
+      </div>
+  </div>
   <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
   <script>
     const body = document.body;
@@ -874,13 +953,35 @@
     let otherUserId = null;
     let replyToMessage = null;
     let typingTimeout;
+    let isEditing = false;
     let typingIndicator = document.getElementById('typingIndicator');
     const playDouzBtn = document.getElementById('playDouzBtn');
 
+    const mainChat = document.getElementById('mainChat');
+    let swipeStartX = 0;
+    let swipeStartY = 0;
+
+    mainChat.addEventListener('touchstart', (e) => {
+        swipeStartX = e.changedTouches[0].screenX;
+        swipeStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+
+    mainChat.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].screenX;
+        const touchEndY = e.changedTouches[0].screenY;
+        const dx = touchEndX - swipeStartX;
+        const dy = touchEndY - swipeStartY;
+        if (Math.abs(dx) > Math.abs(dy) && dx > 60 && window.innerWidth < 700) {
+            backToChats();
+        }
+    });
+
     document.getElementById('messageContextMenu').addEventListener('click', async (e) => {
         const action = e.target.closest('.context-item')?.dataset.action;
-        const msg = document.getElementById('messageContextMenu').currentMessage;
-        if (!msg || !action) return;
+        const messageData = document.getElementById('messageContextMenu').currentMessage;
+        if (!messageData || !action) return;
+
+        const { msg, isSent } = messageData;
 
         const menu = document.getElementById('messageContextMenu');
         menu.style.display = 'none';
@@ -897,10 +998,11 @@
             document.getElementById('chatInput').focus();
         }
         else if (action === 'edit') {
-            if (msg.sender_id !== currentUserId) {
+            if (!isSent) {
                 showToast('You can only edit your own messages');
                 return;
             }
+            isEditing = true;
 
             const row = document.querySelector(`.message-row[data-message-id="${msg.id}"]`);
             if (!row) return;
@@ -937,6 +1039,7 @@
 
             const finishEdit = () => {
                 bubble.innerHTML = originalContent;
+                isEditing = false;
             };
 
             cancelBtn.addEventListener('click', finishEdit);
@@ -954,22 +1057,11 @@
                         body: JSON.stringify({ text: newText })
                     });
                     if (resp.ok) {
-                        finishEdit();
-
-                        const bubbleEl = document.querySelector(`[data-message-id="${msg.id}"] .bubble`);
-                        if (bubbleEl) {
-                            const textNodes = Array.from(bubbleEl.childNodes).filter(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== '');
-                            if (textNodes.length > 0) {
-                                textNodes[0].textContent = newText;
-                            }
-                            let editedSpan = bubbleEl.querySelector('.edited-label');
-                            if (!editedSpan) {
-                                editedSpan = document.createElement('span');
-                                editedSpan.className = 'edited-label';
-                                editedSpan.textContent = ' (edited)';
-                                bubbleEl.appendChild(editedSpan);
-                            }
-                        }
+                        isEditing = false;
+                        msg.text = newText;
+                        msg.edited = true;
+                        const newRow = createMessageElement(msg, isSent);
+                        row.replaceWith(newRow);
                     } else {
                         showToast('Failed to edit message');
                     }
@@ -980,7 +1072,7 @@
             });
         }
         else if (action === 'delete') {
-            if (msg.sender_id !== currentUserId) {
+            if (!isSent) {
                 showToast('You can only delete your own messages');
                 return;
             }
@@ -990,6 +1082,9 @@
 
             const confirmBtn = document.getElementById('confirmDeleteBtn');
             const cancelBtn = document.getElementById('cancelDeleteBtn');
+
+            const menu = document.getElementById('messageContextMenu');
+            menu.style.display = 'none';
 
             const cleanup = () => {
                 modal.style.display = 'none';
@@ -1187,8 +1282,12 @@
           chats.forEach(c => {
               const item = document.createElement('div');
               item.className = 'chat-item' + (activeChatId === c.id ? ' active' : '');
-              item.onclick = () => openChat(c.id);
-
+              item.dataset.chatId = c.id;
+              item.dataset.otherUsername = c.other_username;
+              item.dataset.otherUserId = c.other_user_id;
+              item.addEventListener('click', function() {
+                  openChat(this);
+              });
               const avatar = document.createElement('div');
               avatar.className = 'avatar';
               avatar.textContent = c.other_username[0].toUpperCase();
@@ -1208,13 +1307,24 @@
               infoDiv.appendChild(lastMsg);
 
               item.appendChild(infoDiv);
+              const timeWrapper = document.createElement('div');
+              timeWrapper.className = 'chat-time-wrapper';
 
-              const timeDiv = document.createElement('div');
+              const timeDiv = document.createElement('span');
               timeDiv.className = 'chat-time';
               timeDiv.textContent = c.last_time
                   ? new Date(c.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                   : '';
-              item.appendChild(timeDiv);
+              timeWrapper.appendChild(timeDiv);
+
+              if (c.unread_count > 0) {
+                  const badge = document.createElement('span');
+                  badge.className = 'unread-badge';
+                  badge.textContent = c.unread_count;
+                  timeWrapper.appendChild(badge);
+              }
+
+              item.appendChild(timeWrapper);
 
               chatList.appendChild(item);
           });
@@ -1240,7 +1350,18 @@
         }
     }
 
-    function openChat(chatId) {
+    function openChat(chatElementOrId) {
+        let chatId, initialUsername, initialUserId;
+        const el = (typeof chatElementOrId === 'object') ? chatElementOrId : null;
+
+        if (el) {
+            chatId = parseInt(el.dataset.chatId);
+            initialUsername = el.dataset.otherUsername;
+            initialUserId = parseInt(el.dataset.otherUserId);
+        } else {
+            chatId = chatElementOrId;
+        }
+
         activeChatId = chatId;
         socket.emit('join_chat_room', { chat_id: chatId });
         cancelReply();
@@ -1252,32 +1373,48 @@
         msgContainer.innerHTML = '';
         oldestMessageId = null;
 
+        if (initialUsername) {
+            document.getElementById('chatHeader').textContent = initialUsername;
+            document.getElementById('headerAvatar').textContent = initialUsername[0].toUpperCase();
+            otherUserId = initialUserId;
+            document.getElementById('onlineStatus').textContent = '';
+            fetch('/api/user_status/' + otherUserId)
+                .then(r => r.json())
+                .then(status => updateOnlineStatus(status));
+        } else {
+            document.getElementById('chatHeader').textContent = '...';
+            document.getElementById('headerAvatar').textContent = '...';
+        }
+
         fetch('/api/chats').then(r => r.json()).then(chats => {
             const chat = chats.find(c => c.id == chatId);
             if (chat) {
-                document.getElementById('chatHeader').textContent = chat.other_username;
-                document.getElementById('chatHeader').textContent = chat.other_username;
-                document.getElementById('headerAvatar').textContent = chat.other_username[0].toUpperCase();
-
-                otherUserId = chat.other_user_id;
-
-                fetch('/api/user_status/' + otherUserId)
-                    .then(r => r.json())
-                    .then(status => {
-                        updateOnlineStatus(status);
-                    });
+                if (!initialUsername) {
+                    document.getElementById('chatHeader').textContent = chat.other_username;
+                    document.getElementById('headerAvatar').textContent = chat.other_username[0].toUpperCase();
+                    otherUserId = chat.other_user_id;
+                    fetch('/api/user_status/' + otherUserId)
+                        .then(r => r.json())
+                        .then(status => updateOnlineStatus(status));
+                } else {
+                    if (!otherUserId) otherUserId = chat.other_user_id;
+                }
             }
 
             fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
                 .then(r => r.json())
                 .then(messages => {
-                    if (messages.length > 0) {
-                        oldestMessageId = messages[0].id;
-                    }
+                    if (messages.length > 0) oldestMessageId = messages[0].id;
                     messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
                     msgContainer.scrollTop = msgContainer.scrollHeight;
                 });
         });
+
+        const chatItem = document.querySelector(`.chat-item[data-chat-id="${chatId}"]`);
+        if (chatItem) {
+            const badge = chatItem.querySelector('.unread-badge');
+            if (badge) badge.remove();
+        }
 
         socket.emit('seen', { chat_id: chatId });
         if (window.innerWidth < 700) {
@@ -1374,6 +1511,7 @@
         meta.appendChild(time);
 
         bubble.addEventListener('click', (e) => {
+            if (isEditing) return;
             e.stopPropagation();
             const menu = document.getElementById('messageContextMenu');
             menu.style.display = 'none';
@@ -1395,15 +1533,16 @@
                 menu.style.left = rect.left + 'px';
             }
 
-            menu.currentMessage = msg;
+            menu.currentMessage = { msg, isSent };
             const editBtn = menu.querySelector('[data-action="edit"]');
             const deleteBtn = menu.querySelector('[data-action="delete"]');
-            if (msg.sender_id === currentUserId) {
+
+            if (isSent) {
                 if (editBtn) editBtn.style.display = 'flex';
                 if (deleteBtn) deleteBtn.style.display = 'flex';
             } else {
                 if (editBtn) editBtn.style.display = 'none';
-                if (deleteBtn) editBtn.style.display = 'none';
+                if (deleteBtn) deleteBtn.style.display = 'none';
             }
 
             menu.style.display = 'block';
@@ -1430,11 +1569,6 @@
         }
 
         bubble.appendChild(meta);
-
-        if (msg.deleted) {
-            renderDeletedBubble(bubble);
-            return row;
-        }
 
         if (msg.edited) {
             const editedSpan = document.createElement('span');
@@ -1474,6 +1608,7 @@
       socket.emit('send_chat_message', payload);
       input.value = '';
       autoResize(input);
+      input.focus();
     }
 
     function autoResize(textarea) {
@@ -1513,6 +1648,15 @@
         window.location.href = '/set-password';
     });
     }
+
+    document.getElementById('logoutSidebarBtn').addEventListener('click', async () => {
+        try {
+            await fetch('/api/logout', { method: 'POST' });
+            window.location.href = '/login';
+        } catch (e) {
+            showToast('Logout failed');
+        }
+    });
 
     cancelUsernameBtn.addEventListener('click', () => {
       usernameModal.style.display = 'none';
@@ -1622,6 +1766,81 @@
             settingsDropdown.style.display = 'none';
         }
     });
+
+    const sessionsSidebarBtn = document.getElementById('sessionsSidebarBtn');
+    const sessionsModal = document.getElementById('sessionsModal');
+    const sessionsList = document.getElementById('sessionsList');
+    const closeSessionsModal = document.getElementById('closeSessionsModal');
+
+    sessionsSidebarBtn.addEventListener('click', async () => {
+        try {
+            const resp = await fetch('/api/sessions');
+            const sessions = await resp.json();
+            renderSessions(sessions);
+            sessionsModal.style.display = 'flex';
+        } catch (e) {
+            showToast('Failed to load sessions');
+        }
+    });
+
+    closeSessionsModal.addEventListener('click', () => {
+        sessionsModal.style.display = 'none';
+    });
+
+    function renderSessions(sessions) {
+        sessionsList.innerHTML = '';
+        sessions.forEach(s => {
+            const item = document.createElement('div');
+            item.className = 'session-item';
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'session-info';
+
+            const ipSpan = document.createElement('span');
+            ipSpan.textContent = s.ip || 'Unknown IP';
+            infoDiv.appendChild(ipSpan);
+
+            const uaSpan = document.createElement('span');
+            uaSpan.style.fontSize = '0.7rem';
+            uaSpan.style.color = 'var(--text-secondary)';
+            uaSpan.textContent = s.user_agent ? s.user_agent.substring(0, 50) : 'Unknown device';
+            infoDiv.appendChild(uaSpan);
+
+            const timeSpan = document.createElement('span');
+            timeSpan.style.fontSize = '0.65rem';
+            timeSpan.textContent = new Date(s.created_at).toLocaleString();
+            infoDiv.appendChild(timeSpan);
+
+            if (s.is_current) {
+                const badge = document.createElement('span');
+                badge.className = 'session-badge';
+                badge.textContent = 'Current';
+                infoDiv.appendChild(badge);
+                item.appendChild(infoDiv);
+            } else {
+                item.appendChild(infoDiv);
+
+                const terminateBtn = document.createElement('button');
+                terminateBtn.textContent = 'Terminate';
+                terminateBtn.addEventListener('click', async () => {
+                    try {
+                        const res = await fetch(`/api/sessions/${s.token}`, { method: 'DELETE' });
+                        if (res.ok) {
+                            item.remove();
+                            showToast('Session terminated', true);
+                        } else {
+                            showToast('Failed to terminate session');
+                        }
+                    } catch (e) {
+                        showToast('Connection error');
+                    }
+                });
+                item.appendChild(terminateBtn);
+            }
+
+            sessionsList.appendChild(item);
+        });
+    }
   </script>
 </body>
 </html>

@@ -918,6 +918,21 @@
     .section-list {
         display: block;
     }
+
+    .skeleton-bubble {
+        max-width: 70%;
+        height: 40px;
+        border-radius: 1rem;
+        background: var(--hover-bg);
+        animation: skeleton-pulse 1.5s ease-in-out infinite;
+        margin-bottom: 0.5rem;
+    }
+
+    @keyframes skeleton-pulse {
+        0%   { opacity: 0.4; }
+        50%  { opacity: 0.8; }
+        100% { opacity: 0.4; }
+    }
   </style>
 </head>
 <body>
@@ -1120,7 +1135,7 @@
     let activeChatId = null;
     let oldestMessageId = null;
     let isLoadingMore = false;
-    const MESSAGE_LIMIT = 50;
+    const MESSAGE_LIMIT = 10;
     let currentUsername = null;
     let currentUserId = null;
     let otherUserId = null;
@@ -1364,6 +1379,13 @@
 
     socket.on('connect', () => {
         socket.emit('join_chat');
+        if (activeChatId) {
+            if (activeChatType === 'group') {
+                socket.emit('join_group', { group_id: activeChatId });
+            } else {
+                socket.emit('join_chat_room', { chat_id: activeChatId });
+            }
+        }
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
         if (code) {
@@ -1682,7 +1704,17 @@
         const mainChat = document.getElementById('mainChat');
         mainChat.classList.add('active');
         document.getElementById('inputArea').style.display = 'flex';
-        document.getElementById('messagesContainer').innerHTML = '';
+        const msgContainer = document.getElementById('messagesContainer');
+        msgContainer.innerHTML = '';
+
+        for (let i = 0; i < 7; i++) {
+            const sk = document.createElement('div');
+            sk.className = 'skeleton-bubble';
+            sk.style.alignSelf = i % 2 === 0 ? 'flex-end' : 'flex-start';
+            sk.style.width = (50 + Math.random() * 30) + '%';
+            msgContainer.appendChild(sk);
+        }
+
         oldestMessageId = null;
 
         const headerEl = document.getElementById('chatHeader');
@@ -1717,6 +1749,7 @@
             fetch(`/api/group_messages/${chatId}?limit=${MESSAGE_LIMIT}`)
                 .then(r => r.json())
                 .then(messages => {
+                    document.querySelectorAll('.skeleton-bubble').forEach(el => el.remove());
                     if (messages.length > 0) oldestMessageId = messages[0].id;
                     messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
                     document.getElementById('messagesContainer').scrollTop = document.getElementById('messagesContainer').scrollHeight;
@@ -1747,6 +1780,7 @@
                 fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
                     .then(r => r.json())
                     .then(messages => {
+                        document.querySelectorAll('.skeleton-bubble').forEach(el => el.remove());
                         if (messages.length > 0) oldestMessageId = messages[0].id;
                         messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
                         document.getElementById('messagesContainer').scrollTop = document.getElementById('messagesContainer').scrollHeight;

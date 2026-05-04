@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ورود</title>
+  <title>Login</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -15,6 +15,9 @@
       align-items: center;
       min-height: 100vh;
       padding: 1rem;
+    }
+    body, .app-container {
+        touch-action: pan-y;
     }
     .card {
       background: #0e1621;
@@ -113,8 +116,9 @@
     margin-bottom: 0.5rem;
     }
     .copy-hint {
-    font-size: 0.75rem;
-    color: #8ea2b8;
+        font-size: 0.75rem;
+        color: #8ea2b8;
+        margin-top: 0.6rem;
     }
     .bot-box {
     display: flex;
@@ -171,43 +175,108 @@
     50% { opacity: 0.5; }
     100% { opacity: 1; }
     }
+    .btn-loading {
+        position: relative;
+        pointer-events: none;
+        opacity: 0.7;
+    }
+    .btn-spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-radius: 50%;
+        border-top-color: #fff;
+        animation: spin 0.6s linear infinite;
+        margin-right: 6px;
+        vertical-align: middle;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    .copy-divider {
+        height: 1px;
+        background: rgba(255,255,255,0.08);
+        margin: 0.6rem 0;
+    }
+
+    .copy-btn {
+        background: transparent;
+        color: #aab2bb;
+        border: 1px solid #2b3a4a;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-family: inherit;
+    }
+
+    .copy-btn:hover {
+        background: rgba(255,255,255,0.03);
+        border-color: rgba(255,255,255,0.2);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+
+    .copy-btn:active {
+        transform: scale(0.96);
+    }
+
+    .copy-btn.copied {
+        background: #34d39922;
+        border-color: #34d399;
+        color: #34d399;
+        pointer-events: none;
+    }
+
+    .copy-btn.copied i {
+        color: #34d399;
+    }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="tab-container">
-      <button class="tab active" id="tabOtp" onclick="switchTab('otp')">🤖 ورود با ربات</button>
-      <button class="tab" id="tabPass" onclick="switchTab('password')">🔑 رمز عبور</button>
+      <button class="tab active" id="tabOtp" onclick="switchTab('otp')">🤖 Login with Bot</button>
+      <button class="tab" id="tabPass" onclick="switchTab('password')">🔑 Password</button>
     </div>
 
     <!-- OTP Form -->
     <div id="otpForm" class="form-group active">
-      <h2>🔐 ورود امن</h2>
-      <p class="subtitle">با ربات VerifymeBot احراز هویت کنید</p>
+      <h2>🔐 Secure Login</h2>
+      <p class="subtitle">Verify with VerifyMeBot</p>
       <div class="token-box">
-        <div class="token" id="otpCode">{{ code }}</div>
-        <div class="copy-hint">توکن را کپی کرده و برای ربات ارسال کنید</div>
+          <div class="token" id="otpCode">{{ code }}</div>
+          <div class="copy-divider"></div>
+          <button class="copy-btn" id="copyTokenBtn" onclick="copyToken()">
+              <i class="fa-solid fa-copy"></i> <span>Copy</span>
+          </button>
+          <div class="copy-hint">Send this token to the bot</div>
       </div>
       <a class="bot-box" href="https://rubika.ir/verifymebot" target="_blank">
         <div class="bot-icon"></div>
         <div>
-          <div class="bot-name">VerifymeBot</div>
+          <div class="bot-name">VerifyMeBot</div>
           <div class="bot-link">@verifymebot</div>
         </div>
       </a>
       <div class="timer" id="timer">
-        <span>⏳</span> <span id="timerText">زمان باقی‌مانده: ۹۰ ثانیه</span>
+        <span>⏳</span> <span id="timerText">Time remaining: 1:30</span>
       </div>
       <div id="statusOtp" class="status"></div>
-      <button class="btn-secondary" onclick="window.location.reload()">دریافت توکن جدید</button>
+      <button class="btn-secondary" onclick="window.location.reload()">Get New Token</button>
     </div>
 
     <!-- Password Form -->
     <div id="passwordForm" class="form-group">
-      <h2>🔑 ورود با رمز عبور</h2>
-      <input type="text" id="usernameInput" placeholder="نام کاربری">
-      <input type="password" id="passwordInputLogin" placeholder="رمز عبور">
-      <button class="btn" onclick="loginWithPassword()">ورود</button>
+      <h2>🔑 Login with Password</h2>
+      <input type="text" id="usernameInput" placeholder="Username">
+      <input type="password" id="passwordInputLogin" placeholder="Password">
+      <button class="btn" onclick="loginWithPassword()">Login</button>
       <div id="errorPass" class="error"></div>
     </div>
   </div>
@@ -229,25 +298,25 @@
       timeLeft--;
       if (timeLeft <= 0) {
         expired = true;
-        timerEl.textContent = 'زمان به پایان رسید';
-        statusEl.innerHTML = '<div class="error">کد منقضی شد. لطفاً توکن جدید دریافت کنید.</div>';
+        timerEl.textContent = 'Time is up';
+        statusEl.innerHTML = '<div class="error">Code expired. Please get a new token.</div>';
         return;
       }
       const mins = Math.floor(timeLeft / 60);
       const secs = timeLeft % 60;
-      timerEl.textContent = `زمان باقی‌مانده: ${mins}:${secs.toString().padStart(2, '0')}`;
+      timerEl.textContent = `Time remaining: ${mins}:${secs.toString().padStart(2, '0')}`;
     }
     setInterval(updateTimer, 1000);
 
     async function checkVerification() {
       if (expired || checking) return;
       checking = true;
-      statusEl.innerHTML = '<div class="info animate-pulse">در حال بررسی...</div>';
+      statusEl.innerHTML = '<div class="info animate-pulse">Checking...</div>';
       try {
         const resp = await fetch(`/api/verify_otp?code=${encodeURIComponent(code)}&otp_token=${encodeURIComponent(otpToken)}`);
         const data = await resp.json();
         if (data.success) {
-          statusEl.innerHTML = '<div class="success">تأیید شد! در حال انتقال...</div>';
+          statusEl.innerHTML = '<div class="success">Verified! Redirecting...</div>';
           setTimeout(() => {
             window.location.href = data.new_user ? '/set-username' : '/chat';
           }, 800);
@@ -265,27 +334,44 @@
     }, 2000);
 
     async function loginWithPassword() {
-      const username = document.getElementById('usernameInput').value.trim();
-      const password = document.getElementById('passwordInputLogin').value;
-      if (!username || !password) {
-        document.getElementById('errorPass').textContent = 'لطفاً نام کاربری و رمز عبور را وارد کنید.';
-        return;
-      }
-      try {
-        const resp = await fetch('/api/login_password', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ username, password })
-        });
-        const data = await resp.json();
-        if (data.success) {
-          window.location.href = '/chat';
-        } else {
-          document.getElementById('errorPass').textContent = data.error || 'نام کاربری یا رمز عبور اشتباه است.';
+        const username = document.getElementById('usernameInput').value.trim();
+        const password = document.getElementById('passwordInputLogin').value;
+        const btn = document.querySelector('#passwordForm .btn');
+        const errorEl = document.getElementById('errorPass');
+
+        if (!username || !password) {
+            errorEl.textContent = 'Please enter your username and password.';
+            return;
         }
-      } catch (err) {
-        document.getElementById('errorPass').textContent = 'خطای شبکه.';
-      }
+
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.classList.add('btn-loading');
+        btn.innerHTML = '<span class="btn-spinner"></span> Login...';
+        errorEl.textContent = '';
+
+        try {
+            const resp = await fetch('/api/login_password', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ username, password })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                window.location.href = '/chat';
+            } else {
+                errorEl.textContent = data.error || 'Incorrect username or password.';
+                btn.disabled = false;
+                btn.classList.remove('btn-loading');
+                btn.textContent = originalText;
+            }
+        } catch (err) {
+            errorEl.textContent = 'Network error';
+            btn.disabled = false;
+            btn.classList.remove('btn-loading');
+            btn.textContent = originalText;
+        }
     }
 
     function switchTab(tab) {
@@ -294,6 +380,27 @@
       document.getElementById('tabPass').classList.toggle('active', tab === 'password');
       document.getElementById('otpForm').classList.toggle('active', tab === 'otp');
       document.getElementById('passwordForm').classList.toggle('active', tab === 'password');
+    }
+
+    function copyToken() {
+        const token = document.getElementById('otpCode').textContent.trim();
+        const btn = document.getElementById('copyTokenBtn');
+        const icon = btn.querySelector('i');
+        const span = btn.querySelector('span');
+
+        navigator.clipboard.writeText(token).then(() => {
+            icon.className = 'fa-solid fa-check';
+            span.textContent = 'Copied!';
+            btn.classList.add('copied');
+
+            setTimeout(() => {
+                icon.className = 'fa-solid fa-copy';
+                span.textContent = 'Copy';
+                btn.classList.remove('copied');
+            }, 2000);
+        }).catch(() => {
+            showToast('Failed to copy token');
+        });
     }
   </script>
 </body>

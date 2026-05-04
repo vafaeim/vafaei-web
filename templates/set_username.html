@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>انتخاب نام کاربری</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Set Password</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -25,7 +25,8 @@
       width: 100%;
       box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
-    h2 { margin-bottom: 1rem; }
+    h2 { margin-bottom: 0.5rem; }
+    p { color: #aab2bb; font-size: 0.9rem; margin-bottom: 1.5rem; }
     input {
       width: 100%;
       padding: 0.8rem;
@@ -34,7 +35,7 @@
       border: 1px solid #2b3a4a;
       border-radius: 0.8rem;
       color: #fff;
-      margin: 1rem 0;
+      margin: 0.5rem 0;
       outline: none;
       font-family: inherit;
     }
@@ -48,42 +49,95 @@
       cursor: pointer;
       transition: background 0.2s;
       margin-top: 1rem;
+      width: 100%;
     }
     .btn:hover { background: #3a6a99; }
+    .btn:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+    .btn-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .btn-spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .btn-skip {
+      background: transparent;
+      color: #8ea2b8;
+      border: 1px solid #2b3a4a;
+      margin-top: 0.5rem;
+    }
     .error { color: #ff4d4d; margin-top: 1rem; font-size: 0.9rem; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>👤 نام کاربری خود را انتخاب کنید</h2>
-    <p style="color: #aab2bb; font-size: 0.9rem;">این نام برای دوستان شما قابل جستجو خواهد بود.</p>
-    <input type="text" id="usernameInput" placeholder="مثلاً amirrrr" maxlength="50">
-    <button class="btn" onclick="submitUsername()">ذخیره و ادامه</button>
-    <div id="errorMsg" class="error"></div>
+    <h2>🔒 Set Password</h2>
+    <p>You can set a password for faster login (optional)</p>
+    <input type="password" id="passwordInput" placeholder="Password (min 6 characters)">
+    <input type="password" id="confirmPasswordInput" placeholder="Confirm password">
+    <button class="btn" id="submitPasswordBtn" onclick="submitPassword()">Save & Continue</button>
+    <button class="btn btn-skip" onclick="skipPassword()">I'll set it up later</button>
+    <div id="msg" class="error"></div>
   </div>
 
   <script>
-    async function submitUsername() {
-      const username = document.getElementById('usernameInput').value.trim();
-      if (!username) {
-        document.getElementById('errorMsg').textContent = 'نام کاربری نمی‌تواند خالی باشد.';
+    async function submitPassword() {
+      const pwd = document.getElementById('passwordInput').value;
+      const confirm = document.getElementById('confirmPasswordInput').value;
+      if (pwd.length < 6) {
+        document.getElementById('msg').textContent = 'Password must be at least 6 characters.';
         return;
       }
+      if (pwd !== confirm) {
+        document.getElementById('msg').textContent = 'Passwords do not match.';
+        return;
+      }
+
+      const btn = document.getElementById('submitPasswordBtn');
+      const originalText = 'Save & Continue';
+      btn.disabled = true;
+      btn.classList.add('btn-loading');
+      btn.innerHTML = '<span class="btn-spinner"></span> Saving...';
+      document.getElementById('msg').textContent = '';
+
       try {
-        const resp = await fetch('/api/set_username', {
+        const resp = await fetch('/api/set_password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username })
+          body: JSON.stringify({ password: pwd })
         });
         const data = await resp.json();
         if (data.success) {
-          window.location.href = '/set-password';
+          window.location.href = '/chat';
         } else {
-          document.getElementById('errorMsg').textContent = data.error || 'خطا در ثبت نام کاربری.';
+          document.getElementById('msg').textContent = data.error || 'Error saving password.';
+          btn.disabled = false;
+          btn.classList.remove('btn-loading');
+          btn.textContent = originalText;
         }
       } catch (err) {
-        document.getElementById('errorMsg').textContent = 'خطای شبکه.';
+        document.getElementById('msg').textContent = 'Network error.';
+        btn.disabled = false;
+        btn.classList.remove('btn-loading');
+        btn.textContent = originalText;
       }
+    }
+
+    function skipPassword() {
+      window.location.href = '/chat';
     }
   </script>
 </body>

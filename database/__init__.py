@@ -146,6 +146,9 @@ def init_db():
                 cur.execute(
                     "ALTER TABLE groups_chat ADD COLUMN IF NOT EXISTS invite_code VARCHAR(16) UNIQUE"
                 )
+                cur.execute(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR"
+                )
         print("INFO: Database initialized successfully.")
     except RuntimeError:
         print("WARNING: Could not initialize database – pool not available.")

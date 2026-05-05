@@ -16,6 +16,9 @@ socketio = SocketIO(
         "http://127.0.0.1:5000",
         "http://localhost:5000",
     ],
+    max_http_buffer_size=10 * 1024 * 1024,
+    ping_interval=10,
+    ping_timeout=5,
 )
 
 db_pool = None

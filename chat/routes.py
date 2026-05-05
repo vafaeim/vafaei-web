@@ -1,6 +1,9 @@
 import json
 import re
 from flask import request, jsonify, session, render_template, redirect, url_for
+import os, imghdr, secrets
+from werkzeug.utils import secure_filename
+from PIL import Image
 from extensions import app, socketio
 from database import database
 import psycopg2.extras
@@ -8,6 +11,12 @@ import psycopg2.errors
 import urllib.parse
 from .events import get_online_users
 from . import chat_bp
+
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
+UPLOAD_FOLDER = os.path.join(app.static_folder, "uploads", "avatars")
+
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
 
 @chat_bp.route("/chat")
@@ -23,7 +32,8 @@ def user_status(user_id):
         with database() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
-                    "SELECT username, last_seen FROM users WHERE id = %s", (user_id,)
+                    "SELECT username, last_seen, avatar_url FROM users WHERE id = %s",
+                    (user_id,),
                 )
                 user = cur.fetchone()
                 if not user:
@@ -37,6 +47,7 @@ def user_status(user_id):
                         "last_seen": user["last_seen"].isoformat() + "Z"
                         if user["last_seen"]
                         else None,
+                        "avatar_url": user["avatar_url"],
                     }
                 )
     except RuntimeError:
@@ -52,7 +63,7 @@ def search_users():
         with database() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
-                    "SELECT id, username FROM users WHERE username ILIKE %s LIMIT 10",
+                    "SELECT id, username, avatar_url FROM users WHERE username ILIKE %s LIMIT 10",
                     (query,),
                 )
                 users = cur.fetchall()
@@ -107,6 +118,7 @@ def get_chats():
                     SELECT c.id,
                         CASE WHEN c.user1_id = %s THEN u2.id ELSE u1.id END AS other_user_id,
                         CASE WHEN c.user1_id = %s THEN u2.username ELSE u1.username END AS other_username,
+                        CASE WHEN c.user1_id = %s THEN u2.avatar_url ELSE u1.avatar_url END AS other_avatar_url,
                         (SELECT text FROM messages WHERE chat_id = c.id AND deleted = FALSE ORDER BY created_at DESC LIMIT 1) AS last_message,
                         (SELECT created_at FROM messages WHERE chat_id = c.id AND deleted = FALSE ORDER BY created_at DESC LIMIT 1) AS last_time,
                         (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id
@@ -119,11 +131,12 @@ def get_chats():
                     WHERE c.user1_id = %s OR c.user2_id = %s
                     ORDER BY last_time DESC NULLS LAST
                 """,
-                    (my_id, my_id, my_id, my_id, my_id, my_id),
+                    (my_id, my_id, my_id, my_id, my_id, my_id, my_id),
                 )
                 chats = cur.fetchall()
                 for c in chats:
                     if c.get("last_time"):
+                        c["other_avatar_url"] = c.get("other_avatar_url")
                         c["unread_count"] = c.get("unread_count", 0) or 0
                         c["last_time"] = (
                             c["last_time"].isoformat() + "Z"
@@ -161,6 +174,7 @@ def get_messages(chat_id):
                         """
                         SELECT m.id, m.text, m.created_at, m.reply_to_id, m.edited, m.deleted,
                               u.username AS sender_username,
+                              u.avatar_url AS sender_avatar_url,
                               m.sender_id,
                               m.seen_by,
                               rm.text AS reply_text,
@@ -181,6 +195,7 @@ def get_messages(chat_id):
                         """
                         SELECT m.id, m.text, m.created_at, m.reply_to_id, m.edited, m.deleted,
                               u.username AS sender_username,
+                              u.avatar_url AS sender_avatar_url,
                               m.sender_id,
                               m.seen_by,
                               rm.text AS reply_text,
@@ -206,13 +221,14 @@ def get_messages(chat_id):
         m["created_at"] = m["created_at"].isoformat() + "Z"
         msg_dict = {
             "id": m["id"],
-            "sender_id": m["sender_id"],
+            # "sender_id": m["sender_id"],
             "text": m["text"],
             "edited": m["edited"],
             "deleted": m["deleted"],
             "created_at": m["created_at"],
             "sender_username": m["sender_username"],
             "sender_id": m["reply_sender_id"],
+            "sender_avatar_url": m["sender_avatar_url"],
             "seen_by": m["seen_by"] or [],
         }
         if m["reply_to_id"] and m["reply_text"]:
@@ -226,10 +242,24 @@ def get_messages(chat_id):
 
 @chat_bp.route("/api/whoami")
 def whoami():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"user_id": None, "username": None, "avatar_url": None})
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("SELECT avatar_url FROM users WHERE id = %s", (user_id,))
+                user = cur.fetchone()
+                avatar = user["avatar_url"] if user else None
+    except RuntimeError:
+        avatar = None
+
     return jsonify(
         {
-            "user_id": session.get("user_id"),
+            "user_id": user_id,
             "username": session.get("username", "unknown"),
+            "avatar_url": avatar,
         }
     )
 
@@ -498,7 +528,9 @@ def get_group_messages(group_id):
                     cur.execute(
                         """
                         SELECT gm.id, gm.text, gm.created_at, gm.reply_to_id,
-                               u.username AS sender_username, gm.sender_id, gm.seen_by, gm.edited, gm.deleted,
+                               u.username AS sender_username,
+                               u.avatar_url AS sender_avatar_url,
+                               gm.sender_id, gm.seen_by, gm.edited, gm.deleted,
                                rm.text AS reply_text,
                                ru.username AS reply_sender_username
                         FROM group_messages gm
@@ -514,7 +546,9 @@ def get_group_messages(group_id):
                     cur.execute(
                         """
                         SELECT gm.id, gm.text, gm.created_at, gm.reply_to_id,
-                               u.username AS sender_username, gm.sender_id, gm.seen_by, gm.edited, gm.deleted,
+                               u.username AS sender_username,
+                               u.avatar_url AS sender_avatar_url,
+                               gm.sender_id, gm.seen_by, gm.edited, gm.deleted,
                                rm.text AS reply_text,
                                ru.username AS reply_sender_username
                         FROM group_messages gm
@@ -538,6 +572,7 @@ def get_group_messages(group_id):
                 "text": m["text"],
                 "created_at": m["created_at"],
                 "sender_username": m["sender_username"],
+                "sender_avatar_url": m["sender_avatar_url"],
                 "seen_by": m["seen_by"] or [],
                 "edited": m["edited"],
                 "deleted": m["deleted"],
@@ -578,7 +613,7 @@ def group_info(group_id):
 
                 cur.execute(
                     """
-                    SELECT u.id, u.username
+                    SELECT u.id, u.username, u.avatar_url
                     FROM users u
                     JOIN group_members gm ON u.id = gm.user_id
                     WHERE gm.group_id = %s
@@ -712,5 +747,60 @@ def join_group_by_code():
             "new_group", {"group_id": group_id, "name": ""}, room=f"user_{user_id}"
         )
         return jsonify({"success": True, "group_id": group_id})
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503
+
+
+import base64
+from io import BytesIO
+
+
+@chat_bp.route("/api/avatar", methods=["POST"])
+def upload_avatar():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    file = request.files.get("avatar")
+    if not file:
+        return jsonify({"error": "No file"}), 400
+
+    try:
+        img = Image.open(file.stream)
+        img = img.convert("RGB")
+        img.thumbnail((32, 32))
+
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG", quality=40)
+        buffer.seek(0)
+
+        b64_data = base64.b64encode(buffer.read()).decode("utf-8")
+        avatar_url = f"data:image/jpeg;base64,{b64_data}"
+
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE users SET avatar_url = %s WHERE id = %s",
+                    (avatar_url, user_id),
+                )
+
+        return jsonify({"success": True, "avatar_url": avatar_url})
+
+    except Exception as e:
+        return jsonify({"error": f"Upload failed: {str(e)}"}), 500
+
+
+@chat_bp.route("/api/avatar/remove", methods=["POST"])
+def remove_avatar():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE users SET avatar_url = NULL WHERE id = %s", (user_id,)
+                )
+        return jsonify({"success": True})
     except RuntimeError:
         return jsonify({"error": "Database unavailable"}), 503

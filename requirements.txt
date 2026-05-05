@@ -5,3 +5,4 @@ eventlet==0.35.2
 gunicorn==21.2.0
 psycopg2-binary==2.9.10
 apscheduler==3.10.4
+pillow

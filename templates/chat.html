@@ -157,9 +157,7 @@
     .sidebar-header .title {
         font-size: 1.2rem;
         font-weight: 600;
-        color: var(--text-primary);  /* این خط قبلیه، نگهش دار */
-
-        /* کدهای جدید: */
+        color: var(--text-primary);
         background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #ff6b6b);
         background-size: 200% 100%;
         -webkit-background-clip: text;
@@ -869,7 +867,7 @@
         font-weight: 600;
         font-size: 1rem;
         flex-shrink: 0;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* shadow قبلی ماند */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         border: 2px solid var(--user-color, var(--avatar-bg));
         box-shadow: 0 0 8px rgba(255, 255, 255, 0.15),
                     0 0 12px var(--user-color, rgba(43, 82, 120, 0.4));
@@ -1079,6 +1077,19 @@
         from { opacity: 1; transform: translateY(0); }
         to   { opacity: 0; transform: translateY(-10px); }
     }
+
+    .avatar img,
+    .header-avatar img,
+    .member-item .member-avatar img {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+
+    .avatar i, .header-avatar i, .member-item .member-avatar i {
+        font-size: inherit;
+    }
   </style>
 </head>
 <body>
@@ -1099,6 +1110,9 @@
                   <i class="fa-solid fa-gear"></i>
               </button>
               <div id="settingsDropdown" style="display:none; position:absolute; top:100%; right:0; background:var(--status-bar-bg); border:1px solid var(--border-color); border-radius:0.8rem; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:100; min-width:180px; padding:0.4rem 0;">
+                  <button id="changeAvatarSidebarBtn" class="dropdown-item">
+                      <i class="fa-solid fa-image"></i> Change Avatar
+                  </button>
                   <button id="changeUsernameSidebarBtn" class="dropdown-item">
                       <i class="fa-solid fa-pen"></i> Change Username
                   </button>
@@ -1263,6 +1277,17 @@
           <button id="closeMembersModal" style="background:transparent; border:1px solid var(--border-color); color:var(--text-secondary); padding:0.4rem 1.2rem; border-radius:0.4rem; cursor:pointer; margin-top:1rem; width:100%;">Close</button>
       </div>
   </div>
+  <div id="avatarModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:200; justify-content:center; align-items:center;">
+      <div style="background:var(--status-bar-bg); border:1px solid var(--border-color); border-radius:0.8rem; padding:1.5rem; text-align:center; max-width:350px; width:90%;">
+          <h3 style="color:var(--text-primary); margin-bottom:1rem;">Update Avatar</h3>
+          <img id="avatarPreview" src="" style="width:100px; height:100px; border-radius:50%; object-fit:cover; margin-bottom:1rem; background:var(--hover-bg);" />
+          <input type="file" id="avatarFileInput" accept="image/*" style="color:var(--text-primary); margin-bottom:1rem;">
+          <button id="uploadAvatarBtn" class="saveUsernameBtn" style="background:#2b5278; color:#fff; border:none; padding:0.5rem 1.5rem; border-radius:0.8rem; cursor:pointer;">Upload</button>
+          <button id="removeAvatarBtn" style="background:transparent; color:#ff4d4d; border:1px solid #ff4d4d; padding:0.5rem 1.5rem; border-radius:0.8rem; cursor:pointer; margin-left:0.5rem;">Remove</button>
+          <button id="closeAvatarModal" style="background:transparent; color:var(--btn-color); border:1px solid var(--border-color); padding:0.5rem 1.5rem; border-radius:0.8rem; cursor:pointer; margin-left:0.5rem;">Cancel</button>
+          <div id="avatarMsg" style="margin-top:0.5rem; font-size:0.8rem;"></div>
+      </div>
+  </div>
   <script src="{{ url_for('static', filename='socket.io.min.js') }}"></script>
   <script>
     const body = document.body;
@@ -1286,7 +1311,7 @@
     let activeChatId = null;
     let oldestMessageId = null;
     let isLoadingMore = false;
-    const MESSAGE_LIMIT = 10;
+    const MESSAGE_LIMIT = 20;
     const SCROLL_LOAD_LIMIT = 50;
     let currentUsername = null;
     let currentUserId = null;
@@ -1298,6 +1323,23 @@
     const playDouzBtn = document.getElementById('playDouzBtn');
     let activeChatType = 'private';
     let selectedMembers = [];
+    const avatarCache = {};
+
+    async function getAvatarUrl(userId) {
+        if (!userId) return null;
+        if (avatarCache.hasOwnProperty(userId)) {
+            return avatarCache[userId];
+        }
+        try {
+            const resp = await fetch('/api/user_status/' + userId);
+            const data = await resp.json();
+            avatarCache[userId] = data.avatar_url || null;
+            return avatarCache[userId];
+        } catch (e) {
+            avatarCache[userId] = null;
+            return null;
+        }
+    }
 
     const mainChat = document.getElementById('mainChat');
     let swipeStartX = 0;
@@ -1764,8 +1806,25 @@
                 });
 
                 const avatar = document.createElement('div');
-                avatar.className = 'avatar ' + getUserColorClass(c.other_user_id);
-                avatar.textContent = c.other_username[0].toUpperCase();
+                avatar.className = 'avatar';
+                const av = c.other_avatar_url;
+                if (av) {
+                    const img = document.createElement('img');
+                    img.src = av;
+                    img.alt = c.other_username[0];
+                    img.draggable = false;
+                    avatar.appendChild(img);
+                } else {
+                    avatar.className += ' ' + getUserColorClass(c.other_user_id);
+                    avatar.textContent = c.other_username[0].toUpperCase();
+                }
+
+                chats.forEach(c => {
+                    if (c.other_avatar_url) {
+                        avatarCache[c.other_user_id] = c.other_avatar_url;
+                    }
+                });
+
                 item.appendChild(avatar);
 
                 const infoDiv = document.createElement('div');
@@ -1950,8 +2009,28 @@
 
         if (initialUsername) {
             headerEl.textContent = initialUsername;
-            avatarEl.textContent = initialUsername[0].toUpperCase();
-            avatarEl.className = initialUserId ? 'header-avatar ' + getUserColorClass(initialUserId) : 'header-avatar';
+            if (initialUserId) {
+                fetch('/api/user_status/' + initialUserId)
+                    .then(r => r.json())
+                    .then(data => {
+                        const avatarEl = document.getElementById('headerAvatar');
+                        avatarEl.innerHTML = '';
+                        if (data.avatar_url) {
+                            const img = document.createElement('img');
+                            img.src = data.avatar_url;
+                            img.alt = initialUsername[0];
+                            img.draggable = false;
+                            avatarEl.appendChild(img);
+                            avatarEl.className = 'header-avatar';
+                        } else {
+                            avatarEl.textContent = initialUsername[0].toUpperCase();
+                            avatarEl.className = 'header-avatar ' + getUserColorClass(initialUserId);
+                        }
+                    });
+            } else {
+                avatarEl.textContent = initialUsername[0].toUpperCase();
+                avatarEl.className = 'header-avatar';
+            }
             viewMembersBtn.style.display = 'none';
         } else {
             headerEl.textContent = '...';
@@ -1997,10 +2076,23 @@
                 const chat = chats.find(c => c.id == chatId);
                 if (chat) {
                     if (!initialUsername) {
-                        document.getElementById('chatHeader').textContent = chat.other_username;
-                        document.getElementById('headerAvatar').textContent = chat.other_username[0].toUpperCase();
                         otherUserId = chat.other_user_id;
-                        document.getElementById('headerAvatar').className = 'header-avatar ' + getUserColorClass(otherUserId);
+                        document.getElementById('chatHeader').textContent = chat.other_username;
+
+                        getAvatarUrl(otherUserId).then(avatarUrl => {
+                            const avatarEl = document.getElementById('headerAvatar');
+                            avatarEl.innerHTML = '';
+                            if (avatarUrl) {
+                                const img = document.createElement('img');
+                                img.src = avatarUrl;
+                                img.draggable = false;
+                                avatarEl.appendChild(img);
+                                avatarEl.className = 'header-avatar';
+                            } else {
+                                avatarEl.textContent = chat.other_username[0].toUpperCase();
+                                avatarEl.className = 'header-avatar ' + getUserColorClass(otherUserId);
+                            }
+                        });
                         fetch('/api/user_status/' + otherUserId)
                             .then(r => r.json())
                             .then(status => updateOnlineStatus(status));
@@ -2264,6 +2356,7 @@
         const row = createMessageElement(msg, isSent);
         container.appendChild(row);
         container.scrollTop = container.scrollHeight;
+        fixDateSeparators(container);
     }
 
     function fixDateSeparators(container) {
@@ -2289,7 +2382,6 @@
             }
         });
 
-        // اتصال کلیک
         container.querySelectorAll('.date-separator').forEach((separator, index, all) => {
             if (index === 0) return;
 
@@ -2297,7 +2389,6 @@
                 const previousSeparator = all[index - 1];
                 const targetDate = previousSeparator.dataset.date;
 
-                // تابع بازگشتی که تا رسیدن به تاریخ مقصد یا اتمام پیام‌ها بارگذاری می‌کند
                 async function loadMoreUntilTarget() {
                     if (!oldestMessageId || !activeChatId) return;
                     if (isLoadingMore) return;
@@ -2326,15 +2417,12 @@
                         mc.insertBefore(fragment, mc.firstChild);
                         oldestMessageId = older[0].id;
 
-                        // بازسازی جداکننده‌ها
                         fixDateSeparators(mc);
 
-                        // آیا تاریخ مقصد حالا در جداکننده‌ها وجود دارد؟
                         const freshSeparators = [...mc.querySelectorAll('.date-separator')];
                         const found = freshSeparators.some(s => s.dataset.date === targetDate);
 
                         if (!found && oldestMessageId) {
-                            // هنوز پیام‌های دیگری هست و تاریخ مقصد پیدا نشده → ادامه بده
                             await loadMoreUntilTarget();
                         }
                     } catch (e) {
@@ -2346,7 +2434,6 @@
 
                 await loadMoreUntilTarget();
 
-                // پس از بارگذاری‌های لازم (یا اگر نیازی نبود)، اسکرول کن
                 const currentContainer = document.getElementById('messagesContainer');
                 const freshSep = [...currentContainer.querySelectorAll('.date-separator')]
                                     .find(s => s.dataset.date === targetDate);
@@ -2373,6 +2460,85 @@
                 container.insertBefore(separator, row);
             }
         });
+    }
+
+    function updateAllMyAvatars(url) {
+        document.querySelectorAll('.chat-item').forEach(item => {
+            const otherUserId = parseInt(item.dataset.otherUserId);
+            if (otherUserId === currentUserId) {
+                const avatar = item.querySelector('.avatar');
+                if (avatar) {
+                    avatar.innerHTML = '';
+                    if (url) {
+                        const img = document.createElement('img');
+                        img.src = url;
+                        img.alt = currentUsername ? currentUsername[0] : '?';
+                        img.draggable = false;
+                        avatar.appendChild(img);
+                        avatar.style.background = 'transparent';
+                        avatar.className = 'avatar';
+                    } else {
+                        avatar.style.background = '';
+                        avatar.className = 'avatar ' + getUserColorClass(currentUserId);
+                        avatar.textContent = currentUsername ? currentUsername[0].toUpperCase() : '?';
+                    }
+                }
+            }
+        });
+
+        if (activeChatId === currentUserId && activeChatType === 'private') {
+            const headerAvatar = document.getElementById('headerAvatar');
+            if (headerAvatar) {
+                headerAvatar.innerHTML = '';
+                if (url) {
+                    const img = document.createElement('img');
+                    img.src = url;
+                    img.draggable = false;
+                    headerAvatar.appendChild(img);
+                    headerAvatar.style.background = 'transparent';
+                    headerAvatar.className = 'header-avatar';
+                } else {
+                    headerAvatar.style.background = '';
+                    headerAvatar.className = 'header-avatar ' + getUserColorClass(currentUserId);
+                    headerAvatar.textContent = currentUsername ? currentUsername[0].toUpperCase() : '?';
+                }
+            }
+        }
+
+        const membersModal = document.getElementById('membersModal');
+        if (membersModal.style.display === 'flex') {
+            document.querySelectorAll('#membersList .member-avatar').forEach(avatar => {
+                if (avatar.parentElement?.querySelector('span')?.textContent === currentUsername) {
+                    avatar.innerHTML = '';
+                    if (url) {
+                        const img = document.createElement('img');
+                        img.src = url;
+                        img.draggable = false;
+                        avatar.appendChild(img);
+                        avatar.style.background = 'transparent';
+                        avatar.className = 'member-avatar';
+                    } else {
+                        avatar.style.background = '';
+                        avatar.className = 'member-avatar ' + getUserColorClass(currentUserId);
+                        avatar.textContent = currentUsername ? currentUsername[0].toUpperCase() : '?';
+                    }
+                }
+            });
+        }
+    }
+
+    function renderAvatar(container, userId, avatarUrl, initial) {
+        container.innerHTML = '';
+        if (avatarUrl) {
+            const img = document.createElement('img');
+            img.src = avatarUrl;
+            img.alt = initial;
+            img.draggable = false;
+            container.appendChild(img);
+        } else {
+            container.textContent = initial;
+            container.className += ' ' + getUserColorClass(userId);
+        }
     }
 
     function cancelReply() {
@@ -2771,8 +2937,17 @@
             item.className = 'member-item';
 
             const avatar = document.createElement('div');
-            avatar.className = 'member-avatar ' + getUserColorClass(member.id);
-            avatar.textContent = member.username[0].toUpperCase();
+            avatar.className = 'member-avatar';
+            if (member.avatar_url) {
+                const img = document.createElement('img');
+                img.src = member.avatar_url;
+                img.alt = member.username[0];
+                img.draggable = false;
+                avatar.appendChild(img);
+            } else {
+                avatar.className += ' ' + getUserColorClass(member.id);
+                avatar.textContent = member.username[0].toUpperCase();
+            }
             item.appendChild(avatar);
 
             const nameSpan = document.createElement('span');
@@ -2830,6 +3005,77 @@
         }
     });
 
+    const changeAvatarSidebarBtn = document.getElementById('changeAvatarSidebarBtn');
+    const avatarModal = document.getElementById('avatarModal');
+    const avatarFileInput = document.getElementById('avatarFileInput');
+    const avatarPreview = document.getElementById('avatarPreview');
+    const uploadAvatarBtn = document.getElementById('uploadAvatarBtn');
+    const removeAvatarBtn = document.getElementById('removeAvatarBtn');
+    const closeAvatarModal = document.getElementById('closeAvatarModal');
+    const avatarMsg = document.getElementById('avatarMsg');
+
+    changeAvatarSidebarBtn.addEventListener('click', () => {
+        fetch('/api/whoami').then(r => r.json()).then(d => {
+            if (d.avatar_url) {
+                avatarPreview.src = d.avatar_url;
+            } else {
+                avatarPreview.src = '';
+            }
+        });
+        avatarModal.style.display = 'flex';
+    });
+
+    avatarFileInput.addEventListener('change', () => {
+        const file = avatarFileInput.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => avatarPreview.src = e.target.result;
+            reader.readAsDataURL(file);
+        }
+    });
+
+    closeAvatarModal.addEventListener('click', () => {
+        avatarModal.style.display = 'none';
+    });
+
+    uploadAvatarBtn.addEventListener('click', async () => {
+        const file = avatarFileInput.files[0];
+        if (!file) {
+            avatarMsg.textContent = 'Select an image';
+            return;
+        }
+        const formData = new FormData();
+        formData.append('avatar', file);
+        try {
+            const resp = await fetch('/api/avatar', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (data.success) {
+                updateAllMyAvatars(data.avatar_url);
+                avatarModal.style.display = 'none';
+                showToast('Avatar updated!', true);
+            } else {
+                avatarMsg.textContent = data.error || 'Upload failed';
+            }
+        } catch (e) {
+            avatarMsg.textContent = 'Network error';
+        }
+    });
+
+    removeAvatarBtn.addEventListener('click', async () => {
+        try {
+            const resp = await fetch('/api/avatar/remove', { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                updateAllMyAvatars(null);
+                avatarPreview.src = '';
+                showToast('Avatar removed!', true);
+            } else {
+                avatarMsg.textContent = data.error || 'Remove failed';
+            }
+        } catch (e) {
+            avatarMsg.textContent = 'Network error';
+        }
+    });
   </script>
 </body>
 </html>

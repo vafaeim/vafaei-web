@@ -155,9 +155,35 @@
     }
 
     .sidebar-header .title {
-      font-size: 1.2rem;
-      font-weight: 600;
-      color: var(--text-primary);
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: var(--text-primary);  /* این خط قبلیه، نگهش دار */
+
+        /* کدهای جدید: */
+        background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #ff6b6b);
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: titleShimmer 4s ease-in-out infinite alternate;
+        text-shadow: 0 0 8px rgba(255, 107, 107, 0.3);
+    }
+
+    .sidebar-header .theme-toggle i {
+        background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #ff6b6b);
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: titleShimmer 4s ease-in-out infinite alternate;
+        display: inline-block;
+    }
+
+
+
+    @keyframes titleShimmer {
+        0%   { background-position: 0% 50%; }
+        100% { background-position: 100% 50%; }
     }
 
     .search-box {
@@ -223,6 +249,10 @@
         font-weight: 600;
         font-size: 1.2rem;
         flex-shrink: 0;
+        border: 2px solid var(--user-color, var(--avatar-bg));
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.15),
+                    0 0 15px var(--user-color, rgba(43, 82, 120, 0.4));
+        transition: box-shadow 0.2s, border-color 0.2s;
     }
 
     .chat-item .chat-info {
@@ -831,18 +861,18 @@
     }
 
     .header-avatar {
-        width: 38px;
-        height: 38px;
+        width: 38px; height: 38px;
         border-radius: 50%;
         background: var(--user-color, var(--avatar-bg));
         color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        display: flex; align-items: center; justify-content: center;
         font-weight: 600;
         font-size: 1rem;
         flex-shrink: 0;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* shadow قبلی ماند */
+        border: 2px solid var(--user-color, var(--avatar-bg));
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.15),
+                    0 0 12px var(--user-color, rgba(43, 82, 120, 0.4));
     }
 
     .session-item {
@@ -885,6 +915,18 @@
         font-weight: 600;
         color: var(--user-color, #60a5fa);
         margin-bottom: 4px;
+        text-shadow: 0 0 8px var(--user-color, #60a5fa), 0 0 15px var(--user-color, rgba(96, 165, 250, 0.5));
+        animation: nameGlow 2.5s ease-in-out infinite alternate;
+    }
+
+    @keyframes nameGlow {
+        0%   { text-shadow: 0 0 4px var(--user-color, #60a5fa), 0 0 8px var(--user-color, rgba(96, 165, 250, 0.3)); }
+        100% { text-shadow: 0 0 10px var(--user-color, #60a5fa), 0 0 20px var(--user-color, rgba(96, 165, 250, 0.7)); }
+    }
+
+    .group-sender-name,
+    .reply-quote .reply-sender {
+        text-shadow: 0 0 6px var(--user-color, #60a5fa);
     }
 
     .member-item {
@@ -898,17 +940,17 @@
     }
 
     .member-item .member-avatar {
-        width: 32px;
-        height: 32px;
+        width: 32px; height: 32px;
         border-radius: 50%;
         background: var(--user-color, var(--avatar-bg));
         color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        display: flex; align-items: center; justify-content: center;
         font-weight: 600;
         font-size: 0.8rem;
         flex-shrink: 0;
+        border: 2px solid var(--user-color, var(--avatar-bg));
+        box-shadow: 0 0 6px rgba(255, 255, 255, 0.15),
+                    0 0 10px var(--user-color, rgba(43, 82, 120, 0.4));
     }
 
     .section-header {
@@ -963,14 +1005,79 @@
         100% { opacity: 0.4; }
     }
 
+    /*
     .chat-item.current-user .avatar,
     .header-avatar.current-user {
         box-shadow: 0 0 0 2px #FFFFFF;
         border: 2px solid #FFFFFF;
     }
+    */
 
     .chat-item .avatar i {
         font-size: 1.3rem;
+    }
+
+    .date-separator {
+        display: flex;
+        justify-content: center;
+        margin: 1.2rem 0;
+        animation: fadeInUp 0.4s ease-out;
+    }
+
+    .date-separator span {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: linear-gradient(135deg, rgba(255, 107, 107, 0.12), rgba(72, 219, 251, 0.12));
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-radius: 2rem;
+        padding: 0.35rem 1.2rem;
+        font-size: 0.7rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1),
+                    0 0 15px rgba(72, 219, 251, 0.2);
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+        direction: rtl;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .date-separator span::before {
+        content: "\f073";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: 0.8rem;
+        opacity: 0.8;
+    }
+
+    .date-separator span:hover {
+        transform: translateY(-3px) scale(1.03);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.25), 0 0 30px rgba(72, 219, 251, 0.5);
+        cursor: pointer;
+    }
+
+    body.light-mode .date-separator span {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(230, 230, 250, 0.5));
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.03),
+                    0 0 15px rgba(100, 100, 255, 0.15);
+    }
+
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .date-separator.fade-out {
+        animation: fadeOutDown 0.3s ease-out forwards;
+    }
+
+    @keyframes fadeOutDown {
+        from { opacity: 1; transform: translateY(0); }
+        to   { opacity: 0; transform: translateY(-10px); }
     }
   </style>
 </head>
@@ -978,11 +1085,13 @@
   <div class="app-container">
     <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
-          <span class="title">Chats</span>
+          <span class="title"><i class="fa-solid fa-inbox"></i> Inbox</span>
           <div style="display:flex;align-items:center;gap:0.3rem; position: relative;">
+              <!--
               <button id="savedMessagesBtn" class="theme-toggle" title="Saved Messages" style="font-size:1.2rem;">
                   <i class="fa-solid fa-bookmark"></i>
               </button>
+              -->
               <button id="newGroupBtn" class="theme-toggle" title="New Group" style="font-size:1.2rem;">
                   <i class="fa-solid fa-user-group"></i>
               </button>
@@ -1178,6 +1287,7 @@
     let oldestMessageId = null;
     let isLoadingMore = false;
     const MESSAGE_LIMIT = 10;
+    const SCROLL_LOAD_LIMIT = 50;
     let currentUsername = null;
     let currentUserId = null;
     let otherUserId = null;
@@ -1238,7 +1348,7 @@
         else if (action === 'reply') {
             replyToMessage = msg;
             const previewText = msg.text.length > 40 ? msg.text.substring(0, 40) + '...' : msg.text;
-            document.getElementById('replyText').textContent = '↩ ' + previewText;
+            document.getElementById('replyText').textContent = previewText;
             document.getElementById('replyPreview').classList.add('active');
             document.getElementById('chatInput').focus();
         }
@@ -1754,6 +1864,39 @@
         document.getElementById('onlineStatus').textContent = '';
         otherUserId = null;
 
+        // if (type === 'saved') {
+        //     document.getElementById('chatHeader').textContent = 'Saved Messages';
+        //     document.getElementById('headerAvatar').innerHTML = '<i class="fa-solid fa-bookmark"></i>';
+        //     document.getElementById('headerAvatar').style.background = '#2b9cff';
+        //     document.getElementById('onlineStatus').textContent = '';
+        //     otherUserId = currentUserId;
+        //
+        //     renameGroupBtn.style.display = 'none';
+        //     inviteGroupBtn.style.display = 'none';
+        //     document.getElementById('viewMembersBtn').style.display = 'none';
+        //
+        //     fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
+        //         .then(r => r.json())
+        //         .then(messages => {
+        //             document.querySelectorAll('.skeleton-bubble').forEach(el => el.remove());
+        //             if (messages.length > 0) oldestMessageId = messages[0].id;
+        //             messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
+        //             document.getElementById('messagesContainer').scrollTop =
+        //                 document.getElementById('messagesContainer').scrollHeight;
+        //         });
+        //
+        //     socket.emit('join_chat_room', { chat_id: chatId });
+        //     socket.emit('seen', { chat_id: chatId });
+        //     cancelReply();
+        //
+        //     const mainChat = document.getElementById('mainChat');
+        //     mainChat.classList.add('active');
+        //     document.getElementById('inputArea').style.display = 'flex';
+        //
+        //     if (window.innerWidth < 700) document.getElementById('sidebar').classList.add('hidden');
+        //     return;
+        // }
+
         if (type === 'group') {
             socket.emit('join_group', { group_id: chatId });
             otherUserId = chatId;
@@ -1780,30 +1923,30 @@
         const avatarEl = document.getElementById('headerAvatar');
         const viewMembersBtn = document.getElementById('viewMembersBtn');
 
-        if (type === 'private' && currentUserId && chatId === currentUserId) {
-            document.getElementById('chatHeader').textContent = 'Saved Messages';
-            document.getElementById('headerAvatar').innerHTML = '<i class="fa-solid fa-bookmark"></i>';
-            document.getElementById('headerAvatar').style.background = '#2b9cff';
-            document.getElementById('onlineStatus').textContent = '';
-            otherUserId = currentUserId;
-            renameGroupBtn.style.display = 'none';
-            inviteGroupBtn.style.display = 'none';
-            viewMembersBtn.style.display = 'none';
-
-            fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
-                .then(r => r.json())
-                .then(messages => {
-                    document.querySelectorAll('.skeleton-bubble').forEach(el => el.remove());
-                    if (messages.length > 0) oldestMessageId = messages[0].id;
-                    messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
-                    msgContainer.scrollTop = msgContainer.scrollHeight;
-                });
-
-            socket.emit('seen', { chat_id: chatId });
-            cancelReply();
-            if (window.innerWidth < 700) document.getElementById('sidebar').classList.add('hidden');
-            return;
-        }
+        // if (type === 'private' && currentUserId && chatId === currentUserId) {
+        //     document.getElementById('chatHeader').textContent = 'Saved Messages';
+        //     document.getElementById('headerAvatar').innerHTML = '<i class="fa-solid fa-bookmark"></i>';
+        //     document.getElementById('headerAvatar').style.background = '#2b9cff';
+        //     document.getElementById('onlineStatus').textContent = '';
+        //     otherUserId = currentUserId;
+        //     renameGroupBtn.style.display = 'none';
+        //     inviteGroupBtn.style.display = 'none';
+        //     viewMembersBtn.style.display = 'none';
+        //
+        //     fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
+        //         .then(r => r.json())
+        //         .then(messages => {
+        //             document.querySelectorAll('.skeleton-bubble').forEach(el => el.remove());
+        //             if (messages.length > 0) oldestMessageId = messages[0].id;
+        //             messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
+        //             msgContainer.scrollTop = msgContainer.scrollHeight;
+        //         });
+        //
+        //     socket.emit('seen', { chat_id: chatId });
+        //     cancelReply();
+        //     if (window.innerWidth < 700) document.getElementById('sidebar').classList.add('hidden');
+        //     return;
+        // }
 
         if (initialUsername) {
             headerEl.textContent = initialUsername;
@@ -1838,6 +1981,7 @@
                     messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
                     document.getElementById('messagesContainer').scrollTop =
                         document.getElementById('messagesContainer').scrollHeight;
+                    fixDateSeparators(msgContainer);
                 });
         } else {
             if (initialUserId) {
@@ -1872,6 +2016,7 @@
                         messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
                         document.getElementById('messagesContainer').scrollTop =
                             document.getElementById('messagesContainer').scrollHeight;
+                        fixDateSeparators(msgContainer);
                     });
             });
         }
@@ -1894,6 +2039,13 @@
         const row = document.createElement('div');
         row.className = 'message-row ' + (isSent ? 'sent' : 'received');
         row.dataset.messageId = msg.id;
+        row.id = `message-${msg.id}`;
+
+        row.dataset.date = new Date(msg.created_at).toLocaleDateString('fa-IR', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
 
         const swipeIndicator = document.createElement('div');
         swipeIndicator.className = 'swipe-indicator';
@@ -2098,7 +2250,7 @@
                 e.stopPropagation();
                 replyToMessage = msg;
                 const previewText = msg.text.length > 40 ? msg.text.substring(0, 40) + '...' : msg.text;
-                document.getElementById('replyText').textContent = '↩ ' + previewText;
+                document.getElementById('replyText').textContent = previewText;
                 document.getElementById('replyPreview').classList.add('active');
                 document.getElementById('chatInput').focus();
             }
@@ -2112,6 +2264,115 @@
         const row = createMessageElement(msg, isSent);
         container.appendChild(row);
         container.scrollTop = container.scrollHeight;
+    }
+
+    function fixDateSeparators(container) {
+        container.querySelectorAll('.date-separator').forEach(el => el.remove());
+
+        const rows = [...container.querySelectorAll('.message-row')];
+        if (rows.length === 0) return;
+
+        let lastDate = null;
+        rows.forEach(row => {
+            const date = row.dataset.date;
+            if (date && date !== lastDate) {
+                lastDate = date;
+                const separator = document.createElement('div');
+                separator.className = 'date-separator';
+                separator.style.cursor = 'pointer';
+                separator.dataset.date = date;
+
+                const span = document.createElement('span');
+                span.textContent = date;
+                separator.appendChild(span);
+                container.insertBefore(separator, row);
+            }
+        });
+
+        // اتصال کلیک
+        container.querySelectorAll('.date-separator').forEach((separator, index, all) => {
+            if (index === 0) return;
+
+            separator.addEventListener('click', async function goToPrevDay() {
+                const previousSeparator = all[index - 1];
+                const targetDate = previousSeparator.dataset.date;
+
+                // تابع بازگشتی که تا رسیدن به تاریخ مقصد یا اتمام پیام‌ها بارگذاری می‌کند
+                async function loadMoreUntilTarget() {
+                    if (!oldestMessageId || !activeChatId) return;
+                    if (isLoadingMore) return;
+                    isLoadingMore = true;
+
+                    try {
+                        const url = activeChatType === 'group'
+                            ? `/api/group_messages/${activeChatId}?limit=${SCROLL_LOAD_LIMIT}&before_id=${oldestMessageId}`
+                            : `/api/messages/${activeChatId}?limit=${SCROLL_LOAD_LIMIT}&before_id=${oldestMessageId}`;
+
+                        const resp = await fetch(url);
+                        const older = await resp.json();
+
+                        if (!older.length) {
+                            oldestMessageId = null;
+                            return;
+                        }
+
+                        const fragment = document.createDocumentFragment();
+                        older.forEach(msg => {
+                            const isSent = msg.sender_username === currentUsername;
+                            fragment.appendChild(createMessageElement(msg, isSent));
+                        });
+
+                        const mc = document.getElementById('messagesContainer');
+                        mc.insertBefore(fragment, mc.firstChild);
+                        oldestMessageId = older[0].id;
+
+                        // بازسازی جداکننده‌ها
+                        fixDateSeparators(mc);
+
+                        // آیا تاریخ مقصد حالا در جداکننده‌ها وجود دارد؟
+                        const freshSeparators = [...mc.querySelectorAll('.date-separator')];
+                        const found = freshSeparators.some(s => s.dataset.date === targetDate);
+
+                        if (!found && oldestMessageId) {
+                            // هنوز پیام‌های دیگری هست و تاریخ مقصد پیدا نشده → ادامه بده
+                            await loadMoreUntilTarget();
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    } finally {
+                        isLoadingMore = false;
+                    }
+                }
+
+                await loadMoreUntilTarget();
+
+                // پس از بارگذاری‌های لازم (یا اگر نیازی نبود)، اسکرول کن
+                const currentContainer = document.getElementById('messagesContainer');
+                const freshSep = [...currentContainer.querySelectorAll('.date-separator')]
+                                    .find(s => s.dataset.date === targetDate);
+                if (freshSep && freshSep.nextElementSibling) {
+                    freshSep.nextElementSibling.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+        });
+    }
+
+
+    function rebuildDateSeparators(container) {
+        const rows = [...container.querySelectorAll('.message-row')];
+        let lastDate = null;
+        rows.forEach(row => {
+            const date = row.dataset.date;
+            if (date && date !== lastDate) {
+                lastDate = date;
+                const separator = document.createElement('div');
+                separator.className = 'date-separator';
+                const span = document.createElement('span');
+                span.textContent = date;
+                separator.appendChild(span);
+                container.insertBefore(separator, row);
+            }
+        });
     }
 
     function cancelReply() {
@@ -2235,7 +2496,7 @@
             const prevScrollHeight = messagesContainerEl.scrollHeight;
             const prevScrollTop = messagesContainerEl.scrollTop;
 
-            fetch(`/api/messages/${activeChatId}?limit=${MESSAGE_LIMIT}&before_id=${oldestMessageId}`)
+            fetch(`/api/messages/${activeChatId}?limit=${SCROLL_LOAD_LIMIT}&before_id=${oldestMessageId}`)
                 .then(r => r.json())
                 .then(olderMessages => {
                     if (!olderMessages.length) {
@@ -2257,6 +2518,7 @@
                 })
                 .catch(err => console.error('Error loading older messages:', err))
                 .finally(() => {
+                    fixDateSeparators(messagesContainerEl);
                     isLoadingMore = false;
                 });
         }
@@ -2378,22 +2640,38 @@
         selectedMembers = [];
     });
 
-    const savedMessagesBtn = document.getElementById('savedMessagesBtn');
-    if (savedMessagesBtn) {
-        savedMessagesBtn.addEventListener('click', () => {
-            if (!currentUserId) {
-                fetch('/api/whoami').then(r => r.json()).then(d => {
-                    if (d.user_id) {
-                        currentUserId = d.user_id;
-                        currentUsername = d.username;
-                        startChat(d.user_id);
-                    }
-                });
-            } else {
-                startChat(currentUserId);
-            }
-        });
-    }
+    // const savedMessagesBtn = document.getElementById('savedMessagesBtn');
+    // if (savedMessagesBtn) {
+    //     savedMessagesBtn.addEventListener('click', () => {
+    //         if (!currentUserId) {
+    //             fetch('/api/whoami').then(r => r.json()).then(d => {
+    //                 if (d.user_id) {
+    //                     currentUserId = d.user_id;
+    //                     currentUsername = d.username;
+    //                     fetch('/api/start_chat', {
+    //                         method: 'POST',
+    //                         headers: {'Content-Type': 'application/json'},
+    //                         body: JSON.stringify({ user_id: currentUserId })
+    //                     })
+    //                     .then(r => r.json())
+    //                     .then(data => {
+    //                         if (data.chat_id) openChat(data.chat_id, 'saved');
+    //                     });
+    //                 }
+    //             });
+    //         } else {
+    //             fetch('/api/start_chat', {
+    //                 method: 'POST',
+    //                 headers: {'Content-Type': 'application/json'},
+    //                 body: JSON.stringify({ user_id: currentUserId })
+    //             })
+    //             .then(r => r.json())
+    //             .then(data => {
+    //                 if (data.chat_id) openChat(data.chat_id, 'saved');
+    //             });
+    //         }
+    //     });
+    // }
 
     document.getElementById('cancelGroupBtn').addEventListener('click', () => {
         document.getElementById('newGroupModal').style.display = 'none';

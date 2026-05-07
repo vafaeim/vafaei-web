@@ -72,7 +72,8 @@ def handle_chat_message(data):
     chat_id = data.get("chat_id")
     text = data.get("text", "").strip()
     reply_to = data.get("reply_to_message_id")
-    if not text and not reply_to:
+    att = data.get("attachment")
+    if not text and not reply_to and not att:
         return
     if not chat_id:
         return
@@ -81,11 +82,18 @@ def handle_chat_message(data):
         with database() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
-                    """INSERT INTO messages (chat_id, sender_id, text, reply_to_id)
-                    VALUES (%s, %s, %s, %s) RETURNING id, created_at, seen_by""",
-                    (chat_id, sender_id, text, reply_to),
+                    """INSERT INTO messages (chat_id, sender_id, text, reply_to_id, attachment)
+                    VALUES (%s, %s, %s, %s, %s) RETURNING id, created_at, seen_by""",
+                    (
+                        chat_id,
+                        sender_id,
+                        text or "",
+                        reply_to,
+                        json.dumps(att) if att else None,
+                    ),
                 )
                 msg = cur.fetchone()
+                msg["attachment"] = att
                 msg["text"] = text or ""
                 msg["chat_id"] = chat_id
                 msg["created_at"] = msg["created_at"].isoformat() + "Z"
@@ -105,6 +113,7 @@ def handle_chat_message(data):
                     reply_msg = cur.fetchone()
                     if reply_msg:
                         msg["reply_to"] = {
+                            "id": reply_to,
                             "text": reply_msg["text"],
                             "sender_username": reply_msg["sender_username"],
                             "sender_id": reply_msg["reply_sender_id"],
@@ -207,7 +216,8 @@ def handle_group_message(data):
     text = data.get("text", "").strip()
     reply_to = data.get("reply_to_message_id")
 
-    if not text and not reply_to:
+    att = data.get("attachment")
+    if not text and not reply_to and not att:
         return
     if not group_id:
         return
@@ -223,11 +233,18 @@ def handle_group_message(data):
                     return
 
                 cur.execute(
-                    """INSERT INTO group_messages (group_id, sender_id, text, reply_to_id)
-                    VALUES (%s, %s, %s, %s) RETURNING id, created_at, seen_by""",
-                    (group_id, sender_id, text, reply_to),
+                    """INSERT INTO group_messages (group_id, sender_id, text, reply_to_id, attachment)
+                    VALUES (%s, %s, %s, %s, %s) RETURNING id, created_at, seen_by""",
+                    (
+                        group_id,
+                        sender_id,
+                        text or "",
+                        reply_to,
+                        json.dumps(att) if att else None,
+                    ),
                 )
                 msg = cur.fetchone()
+                msg["attachment"] = att
                 msg["text"] = text or ""
                 msg["group_id"] = group_id
                 msg["created_at"] = msg["created_at"].isoformat() + "Z"
@@ -248,6 +265,7 @@ def handle_group_message(data):
                     reply_msg = cur.fetchone()
                     if reply_msg:
                         msg["reply_to"] = {
+                            "id": reply_to,
                             "text": reply_msg["text"],
                             "sender_username": reply_msg["sender_username"],
                         }

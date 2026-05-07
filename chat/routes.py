@@ -11,12 +11,30 @@ import psycopg2.errors
 import urllib.parse
 from .events import get_online_users
 from . import chat_bp
+import json as _json
 
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
-UPLOAD_FOLDER = os.path.join(app.static_folder, "uploads", "avatars")
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+ALLOWED_VOICE_TYPES = {
+    "audio/webm",
+    "audio/ogg",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/mp4",
+}
+ALLOWED_AVATAR_TYPES = {"png", "jpg", "jpeg", "gif"}
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_BASE = os.environ.get(
+    "UPLOAD_BASE_PATH", os.path.join(BASE_DIR, "..", "uploads")
+)
+
+IMAGE_FOLDER = os.path.join(UPLOAD_BASE, "images")
+VOICE_FOLDER = os.path.join(UPLOAD_BASE, "voice")
+AVATAR_FOLDER = os.path.join(UPLOAD_BASE, "avatars")
+
+for folder in (IMAGE_FOLDER, VOICE_FOLDER, AVATAR_FOLDER):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
 
 
 @chat_bp.route("/chat")
@@ -177,6 +195,7 @@ def get_messages(chat_id):
                               u.avatar_url AS sender_avatar_url,
                               m.sender_id,
                               m.seen_by,
+                              m.attachment,
                               rm.text AS reply_text,
                               ru.username AS reply_sender_username,
                               rm.sender_id AS reply_sender_id
@@ -198,6 +217,7 @@ def get_messages(chat_id):
                               u.avatar_url AS sender_avatar_url,
                               m.sender_id,
                               m.seen_by,
+                              m.attachment,
                               rm.text AS reply_text,
                               ru.username AS reply_sender_username,
                               rm.sender_id AS reply_sender_id
@@ -219,6 +239,13 @@ def get_messages(chat_id):
     result = []
     for m in messages:
         m["created_at"] = m["created_at"].isoformat() + "Z"
+        att = m.get("attachment")
+        if att is None:
+            attachment_data = None
+        elif isinstance(att, dict):
+            attachment_data = att
+        else:
+            attachment_data = _json.loads(att)
         msg_dict = {
             "id": m["id"],
             "sender_id": m["sender_id"],
@@ -229,9 +256,11 @@ def get_messages(chat_id):
             "sender_username": m["sender_username"],
             "sender_avatar_url": m["sender_avatar_url"],
             "seen_by": m["seen_by"] or [],
+            "attachment": attachment_data,
         }
         if m["reply_to_id"] and m["reply_text"]:
             msg_dict["reply_to"] = {
+                "id": m["reply_to_id"],
                 "text": m["reply_text"],
                 "sender_username": m["reply_sender_username"],
                 "sender_id": m["reply_sender_id"],
@@ -530,7 +559,7 @@ def get_group_messages(group_id):
                         SELECT gm.id, gm.text, gm.created_at, gm.reply_to_id,
                                u.username AS sender_username,
                                u.avatar_url AS sender_avatar_url,
-                               gm.sender_id, gm.seen_by, gm.edited, gm.deleted,
+                               gm.sender_id, gm.seen_by, gm.attachment, gm.edited, gm.deleted,
                                rm.text AS reply_text,
                                ru.username AS reply_sender_username,
                                rm.sender_id AS reply_sender_id
@@ -549,7 +578,7 @@ def get_group_messages(group_id):
                         SELECT gm.id, gm.text, gm.created_at, gm.reply_to_id,
                                u.username AS sender_username,
                                u.avatar_url AS sender_avatar_url,
-                               gm.sender_id, gm.seen_by, gm.edited, gm.deleted,
+                               gm.sender_id, gm.seen_by, gm.attachment, gm.edited, gm.deleted,
                                rm.text AS reply_text,
                                ru.username AS reply_sender_username,
                                rm.sender_id AS reply_sender_id
@@ -568,6 +597,13 @@ def get_group_messages(group_id):
         result = []
         for m in messages:
             m["created_at"] = m["created_at"].isoformat() + "Z"
+            att = m.get("attachment")
+            if att is None:
+                attachment_data = None
+            elif isinstance(att, dict):
+                attachment_data = att
+            else:
+                attachment_data = _json.loads(att)
             msg_dict = {
                 "id": m["id"],
                 "sender_id": m["sender_id"],
@@ -578,9 +614,11 @@ def get_group_messages(group_id):
                 "seen_by": m["seen_by"] or [],
                 "edited": m["edited"],
                 "deleted": m["deleted"],
+                "attachment": attachment_data,
             }
             if m["reply_to_id"] and m["reply_text"]:
                 msg_dict["reply_to"] = {
+                    "id": m["reply_to_id"],
                     "text": m["reply_text"],
                     "sender_username": m["reply_sender_username"],
                     "sender_id": m["reply_sender_id"],
@@ -771,14 +809,27 @@ def upload_avatar():
     try:
         img = Image.open(file.stream)
         img = img.convert("RGB")
-        img.thumbnail((32, 32))
+        img.thumbnail((128, 128))
 
-        buffer = BytesIO()
-        img.save(buffer, format="JPEG", quality=40)
-        buffer.seek(0)
+        filename = secrets.token_hex(8) + ".jpg"
+        filepath = os.path.join(AVATAR_FOLDER, filename)
+        img.save(filepath, format="JPEG", quality=80)
 
-        b64_data = base64.b64encode(buffer.read()).decode("utf-8")
-        avatar_url = f"data:image/jpeg;base64,{b64_data}"
+        avatar_url = f"/media/avatars/{filename}"
+
+        old_avatar = None
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT avatar_url FROM users WHERE id = %s", (user_id,))
+                row = cur.fetchone()
+                if row:
+                    old_avatar = row[0]
+
+        if old_avatar and old_avatar.startswith("/media/avatars/"):
+            old_filename = os.path.basename(old_avatar)
+            old_path = os.path.join(AVATAR_FOLDER, old_filename)
+            if os.path.exists(old_path):
+                os.remove(old_path)
 
         with database() as conn:
             with conn.cursor() as cur:
@@ -798,12 +849,89 @@ def remove_avatar():
     user_id = session.get("user_id")
     if not user_id:
         return jsonify({"error": "Not logged in"}), 401
+
     try:
+        old_avatar = None
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT avatar_url FROM users WHERE id = %s", (user_id,))
+                row = cur.fetchone()
+                if row:
+                    old_avatar = row[0]
+
+        if old_avatar and old_avatar.startswith("/media/avatars/"):
+            old_filename = os.path.basename(old_avatar)
+            old_path = os.path.join(AVATAR_FOLDER, old_filename)
+            if os.path.exists(old_path):
+                os.remove(old_path)
+
         with database() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "UPDATE users SET avatar_url = NULL WHERE id = %s", (user_id,)
                 )
+
         return jsonify({"success": True})
     except RuntimeError:
         return jsonify({"error": "Database unavailable"}), 503
+
+
+@chat_bp.route("/api/upload", methods=["POST"])
+def upload_file():
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "No file provided"}), 400
+
+    mime = file.mimetype.lower() if file.mimetype else ""
+    if not mime:
+        return jsonify({"error": "Cannot determine file type"}), 400
+
+    if mime in ALLOWED_IMAGE_TYPES:
+        file_type = "image"
+        folder = IMAGE_FOLDER
+        ext = "jpg"
+    elif mime in ALLOWED_VOICE_TYPES:
+        file_type = "voice"
+        folder = VOICE_FOLDER
+        if "mp4" in mime or "aac" in mime:
+            ext = "m4a"
+        elif "ogg" in mime:
+            ext = "ogg"
+        else:
+            ext = "webm"
+    else:
+        return jsonify({"error": f"Unsupported file type: {mime}"}), 400
+
+    ext = "jpg" if file_type == "image" else "ogg"
+    filename = secrets.token_hex(12) + "." + ext
+    filepath = os.path.join(folder, filename)
+    folder_name = "images" if file_type == "image" else "voice"
+
+    attachment = {"type": file_type, "url": f"/media/uploads/{folder_name}/{filename}"}
+
+    try:
+        if file_type == "image":
+            img = Image.open(file.stream)
+            img = img.convert("RGB")
+            img.thumbnail((1200, 1200))
+            img.save(filepath, format="JPEG", quality=85)
+            attachment["width"] = img.width
+            attachment["height"] = img.height
+        else:
+            file.save(filepath)
+    except Exception as e:
+        return jsonify({"error": f"Upload processing failed: {str(e)}"}), 500
+
+    return jsonify({"success": True, "attachment": attachment})
+
+
+from flask import send_from_directory
+
+
+@chat_bp.route("/media/uploads/<path:filename>")
+def serve_upload(filename):
+    return send_from_directory(UPLOAD_BASE, filename)

@@ -29,6 +29,8 @@ if not app.config.get("WHISPER_SECRET_KEY"):
 socketio = SocketIO(
     app,
     async_mode="eventlet",
+    transports=["websocket", "polling"],
+    engineio_max_payload_packets=0,
     cors_allowed_origins=[
         "https://vafaei.runflare.run",
         "http://vafaei.runflare.run",

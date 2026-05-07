@@ -6,3 +6,4 @@ venv/
 whisper_config.json
 .env
 *.env
+uploads/

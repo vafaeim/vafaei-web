@@ -1576,6 +1576,13 @@
         }, 1000);
     });
 
+    document.getElementById('chatInput').addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            sendChatMessage();
+        }
+    });
+
     socket.on('connect', () => {
         socket.emit('join_chat');
         if (activeChatId) {
@@ -2169,8 +2176,7 @@
         }
 
         if (msg.reply_to) {
-            const replySenderId = msg.reply_to.sender_id || msg.sender_id;
-
+            const replySenderId = msg.reply_to.sender_id;
             const quoteDiv = document.createElement('div');
             quoteDiv.className = 'reply-quote ' + getUserColorClass(replySenderId);
             quoteDiv.setAttribute('dir', 'auto');

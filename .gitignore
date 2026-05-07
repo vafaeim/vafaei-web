@@ -4,3 +4,5 @@ venv/
 *.zip
 *.diff
 whisper_config.json
+.env
+*.env

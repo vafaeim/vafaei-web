@@ -1,10 +1,12 @@
 import random
 import string
+import threading
 from extensions import socketio
 from flask import request
 from flask_socketio import join_room, leave_room, emit
 
 dous_rooms = {}
+room_lock = threading.Lock()
 
 
 def generate_room_code():
@@ -55,22 +57,23 @@ def _emit_game_over(room, board, winner_symbol):
 
 @socketio.on("create_room")
 def handle_create_room():
-    room = generate_room_code()
-    while room in dous_rooms:
+    with room_lock:
         room = generate_room_code()
-    dous_rooms[room] = {
-        "board": ["", "", "", "", "", "", "", "", ""],
-        "turn": "X",
-        "players": [request.sid],
-        "symbols": {"X": request.sid},
-        "replay_votes": set(),
-        "scores": {
-            "wins": {request.sid: 0},
-            "draws": 0,
-        },
-    }
-    join_room(room)
-    emit("room_created", {"room": room})
+        while room in dous_rooms:
+            room = generate_room_code()
+        dous_rooms[room] = {
+            "board": ["", "", "", "", "", "", "", "", ""],
+            "turn": "X",
+            "players": [request.sid],
+            "symbols": {"X": request.sid},
+            "replay_votes": set(),
+            "scores": {
+                "wins": {request.sid: 0},
+                "draws": 0,
+            },
+        }
+        join_room(room)
+        emit("room_created", {"room": room})
 
 
 @socketio.on("join_room")

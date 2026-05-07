@@ -221,13 +221,12 @@ def get_messages(chat_id):
         m["created_at"] = m["created_at"].isoformat() + "Z"
         msg_dict = {
             "id": m["id"],
-            # "sender_id": m["sender_id"],
+            "sender_id": m["sender_id"],
             "text": m["text"],
             "edited": m["edited"],
             "deleted": m["deleted"],
             "created_at": m["created_at"],
             "sender_username": m["sender_username"],
-            "sender_id": m["reply_sender_id"],
             "sender_avatar_url": m["sender_avatar_url"],
             "seen_by": m["seen_by"] or [],
         }
@@ -235,6 +234,7 @@ def get_messages(chat_id):
             msg_dict["reply_to"] = {
                 "text": m["reply_text"],
                 "sender_username": m["reply_sender_username"],
+                "sender_id": m["reply_sender_id"],
             }
         result.append(msg_dict)
     return jsonify(result)
@@ -532,7 +532,8 @@ def get_group_messages(group_id):
                                u.avatar_url AS sender_avatar_url,
                                gm.sender_id, gm.seen_by, gm.edited, gm.deleted,
                                rm.text AS reply_text,
-                               ru.username AS reply_sender_username
+                               ru.username AS reply_sender_username,
+                               rm.sender_id AS reply_sender_id
                         FROM group_messages gm
                         JOIN users u ON gm.sender_id = u.id
                         LEFT JOIN group_messages rm ON gm.reply_to_id = rm.id
@@ -550,7 +551,8 @@ def get_group_messages(group_id):
                                u.avatar_url AS sender_avatar_url,
                                gm.sender_id, gm.seen_by, gm.edited, gm.deleted,
                                rm.text AS reply_text,
-                               ru.username AS reply_sender_username
+                               ru.username AS reply_sender_username,
+                               rm.sender_id AS reply_sender_id
                         FROM group_messages gm
                         JOIN users u ON gm.sender_id = u.id
                         LEFT JOIN group_messages rm ON gm.reply_to_id = rm.id
@@ -581,6 +583,7 @@ def get_group_messages(group_id):
                 msg_dict["reply_to"] = {
                     "text": m["reply_text"],
                     "sender_username": m["reply_sender_username"],
+                    "sender_id": m["reply_sender_id"],
                 }
             result.append(msg_dict)
         return jsonify(result)

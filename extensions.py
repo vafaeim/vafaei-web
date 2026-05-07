@@ -1,4 +1,13 @@
+import eventlet
+
+eventlet.monkey_patch()
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import os
+import sys
 from flask import Flask
 from flask_socketio import SocketIO
 from psycopg2.pool import ThreadedConnectionPool
@@ -6,6 +15,16 @@ from contextlib import contextmanager
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.config.from_object("config.Config")
+
+if not app.config.get("SECRET_KEY"):
+    raise RuntimeError(
+        "FATAL: SECRET_KEY is required. Set the SECRET_KEY environment variable or create a .env file."
+    )
+if not app.config.get("WHISPER_SECRET_KEY"):
+    print(
+        "WARNING: WHISPER_SECRET_KEY not set. Whisper settings page is unprotected.",
+        file=sys.stderr,
+    )
 
 socketio = SocketIO(
     app,
@@ -83,3 +102,8 @@ def init_pool():
     except Exception as e:
         print(f"ERROR creating pool: {e}")
         db_pool = None
+
+
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({"success": False, "error": "File too large (max 5MB)."}), 413

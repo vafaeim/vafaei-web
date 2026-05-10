@@ -155,6 +155,12 @@ def init_db():
                 cur.execute(
                     "ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS attachment JSONB"
                 )
+                cur.execute(
+                    "ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '{}'::jsonb"
+                )
+                cur.execute(
+                    "ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '{}'::jsonb"
+                )
         print("INFO: Database initialized successfully.")
     except RuntimeError:
         print("WARNING: Could not initialize database – pool not available.")

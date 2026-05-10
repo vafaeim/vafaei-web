@@ -695,13 +695,15 @@
         box-shadow: 0 8px 24px rgba(0,0,0,0.2);
         background: transparent;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
+        max-width: 100%;
     }
+
     .message-image-wrapper:active {
         transform: scale(0.98);
     }
     .message-image {
-        max-width: 260px;
-        max-height: 260px;
+        max-width: 100%;
+        max-height: 300px;
         width: auto;
         height: auto;
         object-fit: cover;
@@ -1174,6 +1176,106 @@
         justify-content: center;
         align-items: center;
     }
+    #selectionToolbar {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: var(--status-bar-bg);
+        border-bottom: 1px solid var(--border-color);
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+    }
+    #selectionToolbar.active {
+        display: flex;
+    }
+    #selectionToolbar .selection-info {
+        font-size: 0.9rem;
+        color: var(--text-primary);
+    }
+    #selectionToolbar button {
+        background: var(--hover-bg);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.4rem;
+        cursor: pointer;
+        font-size: 0.8rem;
+        font-family: inherit;
+    }
+    #selectionToolbar button.delete-selected {
+        background: #ff4d4d;
+        color: #fff;
+        border: none;
+    }
+
+    .message-row.selected .bubble {
+        outline: 2px solid #2b9cff;
+        outline-offset: 2px;
+        box-shadow: 0 0 10px rgba(43,156,255,0.3);
+    }
+
+    .reactions-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        margin-top: 0.4rem;
+    }
+    .reaction-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.2rem;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid var(--border-color);
+        border-radius: 1rem;
+        padding: 0.15rem 0.5rem;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: background 0.2s;
+        user-select: none;
+    }
+    .reaction-badge:hover {
+        background: rgba(255,255,255,0.15);
+    }
+    .reaction-badge.active {
+        background: rgba(43,156,255,0.15);
+        border-color: #2b9cff;
+        color: #2b9cff;
+    }
+    .reaction-count {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+    .reaction-picker {
+        display: none;
+        position: absolute;
+        background: var(--status-bar-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 2rem;
+        padding: 0.4rem 0.6rem;
+        gap: 0.4rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        z-index: 200;
+        align-items: center;
+    }
+    .reaction-picker.active {
+        display: flex;
+    }
+    .reaction-picker .emoji-option {
+        font-size: 1.3rem;
+        cursor: pointer;
+        transition: transform 0.15s;
+        background: none;
+        border: none;
+        padding: 0.1rem;
+    }
+    .reaction-picker .emoji-option:hover {
+        transform: scale(1.3);
+    }
   </style>
 </head>
 <body>
@@ -1241,6 +1343,15 @@
     </div>
 
     <div class="main-chat" id="mainChat">
+      <div id="selectionToolbar">
+          <span class="selection-info" id="selectionInfo">0 selected</span>
+          <div style="display:flex; gap:0.5rem;">
+              <button class="delete-selected" id="deleteSelectedBtn">
+                  <i class="fa-solid fa-trash"></i> Delete
+              </button>
+              <button id="cancelSelectionBtn">Cancel</button>
+          </div>
+      </div>
       <div class="chat-header">
           <button class="back-btn" onclick="backToChats()">
               <i class="fa-solid fa-arrow-left"></i>
@@ -1353,6 +1464,9 @@
   </div>
 
   <div id="messageContextMenu" style="display:none; position:fixed; background:var(--status-bar-bg); border:1px solid var(--border-color); border-radius:0.6rem; box-shadow:0 4px 12px rgba(0,0,0,0.3); z-index:150; min-width:120px; padding:0.3rem 0;">
+      <button class="context-item" data-action="react">
+          <i class="fa-solid fa-face-smile"></i> React
+      </button>
       <button class="context-item" data-action="reply">
           <i class="fa-solid fa-reply"></i> Reply
       </button>
@@ -1464,26 +1578,56 @@
     let currentProgress = null;
     let currentDuration = null;
     let progressInterval = null;
-    let isRecordingMode = false;        // وضعیت فعلی: تایپ یا ضبط
+    let isRecordingMode = false;
     let pushMediaRecorder = null;
     let pushAudioChunks = [];
     let pushStream = null;
     let pushVoiceType = null;
     let isPushToTalkActive = false;
+    let selectionMode = false;
+    const selectedMessages = new Set();
+    let longPressTimer = null;
+    const LONG_PRESS_DURATION = 500;
 
+    function enterSelectionMode(msgId) {
+        selectionMode = true;
+        selectedMessages.add(msgId);
+        document.getElementById('selectionToolbar').classList.add('active');
+        updateSelectionUI();
+    }
+
+    function exitSelectionMode() {
+        selectionMode = false;
+        selectedMessages.clear();
+        document.getElementById('selectionToolbar').classList.remove('active');
+        document.querySelectorAll('.message-row').forEach(row => {
+            row.classList.remove('selected');
+        });
+        updateSelectionUI();
+    }
+
+    function updateSelectionUI() {
+        const count = selectedMessages.size;
+        document.getElementById('selectionInfo').textContent = count + ' selected';
+        document.querySelectorAll('.message-row').forEach(row => {
+            const msgId = parseInt(row.dataset.messageId);
+            if (selectedMessages.has(msgId)) {
+                row.classList.add('selected');
+            } else {
+                row.classList.remove('selected');
+            }
+        });
+    }
 
     async function enterRecordingMode() {
         try {
-            // فقط برای گرفتن مجوز (یا بررسی مجوز موجود)
             const testStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            // بالافاصله قطع کن، چون فقط مجوز لازم است
             testStream.getTracks().forEach(track => track.stop());
         } catch (err) {
             showToast('Microphone access denied');
-            return; // وارد حالت ضبط نشو
+            return;
         }
 
-        // حالا می‌توانیم با خیال راحت وارد حالت ضبط شویم
         isRecordingMode = true;
         document.getElementById('normalTextArea').style.display = 'none';
         document.getElementById('voiceRecordArea').style.display = 'flex';
@@ -1500,7 +1644,6 @@
         const voiceBtn = document.getElementById('voiceModeToggleBtn');
         voiceBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
         voiceBtn.title = 'Switch to voice mode';
-        // اگر ضبط در حال انجام بود، آن را قطع کن
         if (pushMediaRecorder && isPushToTalkActive) {
             pushMediaRecorder.stop();
         }
@@ -1655,6 +1798,15 @@
         if (action === 'copy') {
             navigator.clipboard.writeText(msg.text || '');
             showToast('Copied!', true);
+        }
+        else if (action === 'react') {
+            const row = document.querySelector(`.message-row[data-message-id="${msg.id}"]`);
+            if (row) {
+                const bubbleEl = row.querySelector('.bubble');
+                if (bubbleEl) {
+                    showReactionPicker(msg, bubbleEl);
+                }
+            }
         }
         else if (action === 'reply') {
             replyToMessage = msg;
@@ -1816,6 +1968,45 @@
         }
     });
 
+    socket.on('message_reaction', (data) => {
+        if (data.chat_id === activeChatId) {
+            const row = document.querySelector(`.message-row[data-message-id="${data.message_id}"]`);
+            if (row) {
+                const bubble = row.querySelector('.bubble');
+                const existing = bubble.querySelector('.reactions-container');
+                if (existing) existing.remove();
+                const msg = { reactions: data.reactions };
+                if (msg.reactions && Object.keys(msg.reactions).length > 0) {
+                    const reactionsContainer = document.createElement('div');
+                    reactionsContainer.className = 'reactions-container';
+                    for (const [emoji, users] of Object.entries(msg.reactions)) {
+                        const badge = document.createElement('span');
+                        badge.className = 'reaction-badge';
+                        if (users.includes(currentUserId)) badge.classList.add('active');
+                        badge.innerHTML = `${emoji} <span class="reaction-count">${users.length}</span>`;
+                        badge.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            toggleReaction(data.message_id, emoji);
+                        });
+                        reactionsContainer.appendChild(badge);
+                    }
+                    bubble.appendChild(reactionsContainer);
+                }
+            }
+        }
+    });
+
+    function closeAllPopups() {
+        if (currentReactionPicker) {
+            currentReactionPicker.remove();
+            currentReactionPicker = null;
+        }
+        const menu = document.getElementById('messageContextMenu');
+        if (menu && menu.style.display !== 'none') {
+            menu.style.display = 'none';
+        }
+    }
+
     function roundedRect(ctx, x, y, width, height, radius) {
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
@@ -1874,6 +2065,58 @@
         // ctx.fill();
         // ctx.shadowColor = 'transparent';
         // ctx.shadowBlur = 0;
+    }
+
+    let currentReactionPicker = null;
+
+    function showReactionPicker(msg, bubble) {
+        if (currentReactionPicker) {
+            currentReactionPicker.remove();
+            currentReactionPicker = null;
+        }
+        const picker = document.createElement('div');
+        picker.className = 'reaction-picker active';
+        const emojis = ['👍', '❤️', '😂', '😢', '😡', '👏', '🎉', '💯', '🔥'];
+        emojis.forEach(emoji => {
+            const btn = document.createElement('button');
+            btn.className = 'emoji-option';
+            btn.textContent = emoji;
+            btn.addEventListener('click', () => {
+                toggleReaction(msg.id, emoji);
+                picker.remove();
+                currentReactionPicker = null;
+            });
+            picker.appendChild(btn);
+        });
+
+        const rect = bubble.getBoundingClientRect();
+        picker.style.top = (rect.top - 50) + 'px';
+        picker.style.left = (rect.left + rect.width/2 - 100) + 'px';
+        document.body.appendChild(picker);
+        currentReactionPicker = picker;
+
+        setTimeout(() => {
+            const closePicker = (e) => {
+                if (!picker.contains(e.target) && e.target !== bubble) {
+                    picker.remove();
+                    currentReactionPicker = null;
+                    document.removeEventListener('click', closePicker);
+                }
+            };
+            document.addEventListener('click', closePicker);
+        }, 10);
+    }
+
+    async function toggleReaction(messageId, emoji) {
+        try {
+            const resp = await fetch(`/api/messages/${messageId}/reaction`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reaction: emoji })
+            });
+        } catch (e) {
+            showToast('Connection error');
+        }
     }
 
     function renderDeletedBubble(bubble) {
@@ -2478,6 +2721,7 @@
         row.className = 'message-row ' + (isSent ? 'sent' : 'received');
         row.dataset.messageId = msg.id;
         row.id = `message-${msg.id}`;
+        let longPressJustTriggered = false;
 
         row.dataset.date = new Date(msg.created_at).toLocaleDateString('fa-IR', {
             year: 'numeric',
@@ -2550,48 +2794,6 @@
             bubble.appendChild(quoteDiv);
         }
 
-        if (msg.text && msg.text.startsWith('GAME_INVITE:')) {
-            try {
-                const inviteData = JSON.parse(msg.text.slice(12));
-                const inviteDiv = document.createElement('div');
-                inviteDiv.className = 'game-invite';
-
-                const textSpan = document.createElement('span');
-                textSpan.className = 'invite-text';
-                textSpan.textContent = `🎮 ${escapeHtml(inviteData.sender)} invited you to play!`;
-                inviteDiv.appendChild(textSpan);
-
-                const playBtn = document.createElement('button');
-                playBtn.textContent = 'Play';
-                playBtn.onclick = () => window.open(`/douz/?room=${encodeURIComponent(inviteData.room)}`, '_blank');
-                inviteDiv.appendChild(playBtn);
-
-                bubble.appendChild(inviteDiv);
-            } catch (err) {
-                const safeText = escapeHtml(msg.text || '');
-                const withBreaks = safeText.replace(/\n/g, '<br>');
-                const withLinks = withBreaks.replace(
-                    /(https?:\/\/[^\s<]+)/g,
-                    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-                );
-                const textSpan = document.createElement('span');
-                textSpan.className = 'msg-text';
-                textSpan.innerHTML = withLinks;
-                bubble.appendChild(textSpan);
-            }
-        } else {
-            const safeText = escapeHtml(msg.text || '');
-            const withBreaks = safeText.replace(/\n/g, '<br>');
-            const withLinks = withBreaks.replace(
-                /(https?:\/\/[^\s<]+)/g,
-                '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-            );
-            const textSpan = document.createElement('span');
-            textSpan.className = 'msg-text';
-            textSpan.innerHTML = withLinks;
-            bubble.appendChild(textSpan);
-        }
-
         const time = document.createElement('span');
         time.className = 'message-time';
         time.textContent = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -2600,8 +2802,64 @@
         meta.className = 'message-meta';
         meta.appendChild(time);
 
+        const addLongPress = (el) => {
+            el.addEventListener('mousedown', (e) => {
+                if (isEditing) return;
+                if (e.button !== 0) return;
+                longPressTimer = setTimeout(() => {
+                    if (!selectionMode && isSent) {
+                        longPressJustTriggered = true;
+                        enterSelectionMode(msg.id);
+                        setTimeout(() => { longPressJustTriggered = false; }, 300);
+                    }
+                    longPressTimer = null;
+                }, LONG_PRESS_DURATION);
+            });
+            el.addEventListener('mouseup', () => {
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            });
+            el.addEventListener('mouseleave', () => {
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            });
+            el.addEventListener('touchstart', (e) => {
+                if (isEditing) return;
+                longPressTimer = setTimeout(() => {
+                    if (!selectionMode && isSent) {
+                        enterSelectionMode(msg.id);
+                    }
+                    longPressTimer = null;
+                }, LONG_PRESS_DURATION);
+            }, { passive: true });
+            el.addEventListener('touchend', () => {
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            });
+            el.addEventListener('touchcancel', () => {
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            });
+        };
+        addLongPress(bubble);
+
         bubble.addEventListener('click', (e) => {
             if (isEditing) return;
+            if (longPressJustTriggered) {
+                longPressJustTriggered = false;
+                return;
+            }
+            if (selectionMode) {
+                e.stopPropagation();
+                if (!isSent) {
+                    showToast('You can only select your own messages');
+                    return;
+                }
+                const msgId = msg.id;
+                if (selectedMessages.has(msgId)) {
+                    selectedMessages.delete(msgId);
+                } else {
+                    selectedMessages.add(msgId);
+                }
+                updateSelectionUI();
+                return;
+            }
             e.stopPropagation();
             const menu = document.getElementById('messageContextMenu');
             menu.style.display = 'none';
@@ -2692,12 +2950,6 @@
                 wrapper.appendChild(downloadBtn);
 
                 bubble.appendChild(wrapper);
-
-                if (msg.text && msg.text.trim().length > 0) {
-                    const divider = document.createElement('div');
-                    divider.className = 'attachment-divider';
-                    bubble.appendChild(divider);
-                }
             } else if (att.type === 'voice') {
                 const player = document.createElement('div');
                 player.className = 'voice-player';
@@ -2786,7 +3038,74 @@
             }
         }
 
+        if (msg.text && msg.text.trim().length > 0) {
+            if (msg.attachment) {
+                const divider = document.createElement('div');
+                divider.className = 'attachment-divider';
+                bubble.appendChild(divider);
+            }
+
+            if (msg.text && msg.text.startsWith('GAME_INVITE:')) {
+                try {
+                    const inviteData = JSON.parse(msg.text.slice(12));
+                    const inviteDiv = document.createElement('div');
+                    inviteDiv.className = 'game-invite';
+
+                    const textSpan = document.createElement('span');
+                    textSpan.className = 'invite-text';
+                    textSpan.textContent = `🎮 ${escapeHtml(inviteData.sender)} invited you to play!`;
+                    inviteDiv.appendChild(textSpan);
+
+                    const playBtn = document.createElement('button');
+                    playBtn.textContent = 'Play';
+                    playBtn.onclick = () => window.open(`/douz/?room=${encodeURIComponent(inviteData.room)}`, '_blank');
+                    inviteDiv.appendChild(playBtn);
+
+                    bubble.appendChild(inviteDiv);
+                } catch (err) {
+                    const safeText = escapeHtml(msg.text);
+                    const withBreaks = safeText.replace(/\n/g, '<br>');
+                    const withLinks = withBreaks.replace(
+                        /(https?:\/\/[^\s<]+)/g,
+                        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+                    );
+                    const textSpan = document.createElement('span');
+                    textSpan.className = 'msg-text';
+                    textSpan.innerHTML = withLinks;
+                    bubble.appendChild(textSpan);
+                }
+            } else {
+                const safeText = escapeHtml(msg.text);
+                const withBreaks = safeText.replace(/\n/g, '<br>');
+                const withLinks = withBreaks.replace(
+                    /(https?:\/\/[^\s<]+)/g,
+                    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+                );
+                const textSpan = document.createElement('span');
+                textSpan.className = 'msg-text';
+                textSpan.innerHTML = withLinks;
+                bubble.appendChild(textSpan);
+            }
+        }
+
         bubble.appendChild(meta);
+
+        if (msg.reactions && Object.keys(msg.reactions).length > 0) {
+            const reactionsContainer = document.createElement('div');
+            reactionsContainer.className = 'reactions-container';
+            for (const [emoji, users] of Object.entries(msg.reactions)) {
+                const badge = document.createElement('span');
+                badge.className = 'reaction-badge';
+                if (users.includes(currentUserId)) badge.classList.add('active');
+                badge.innerHTML = `${emoji} <span class="reaction-count">${users.length}</span>`;
+                badge.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleReaction(msg.id, emoji);
+                });
+                reactionsContainer.appendChild(badge);
+            }
+            bubble.appendChild(reactionsContainer);
+        }
 
         if (msg.edited) {
             const editedSpan = document.createElement('span');
@@ -2806,6 +3125,10 @@
         }, { passive: true });
 
         row.addEventListener('touchmove', (e) => {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
             const touchX = e.changedTouches[0].screenX;
             const touchY = e.changedTouches[0].screenY;
             const dx = touchX - swipeStartX;
@@ -3197,6 +3520,7 @@
 
     const messagesContainerEl = document.getElementById('messagesContainer');
     messagesContainerEl.addEventListener('scroll', function() {
+        closeAllPopups();
         if (isLoadingMore) return;
         if (messagesContainerEl.scrollTop < 30 && oldestMessageId && activeChatId) {
             isLoadingMore = true;
@@ -3753,6 +4077,30 @@
         a.click();
         document.body.removeChild(a);
     }
+
+    document.getElementById('deleteSelectedBtn').addEventListener('click', () => {
+        const count = selectedMessages.size;
+        if (count === 0) return;
+        if (!confirm(`Delete ${count} message(s)?`)) return;
+        selectedMessages.forEach(msgId => {
+            fetch(`/api/messages/${msgId}`, { method: 'DELETE' }).catch(() => {});
+        });
+        exitSelectionMode();
+    });
+
+    document.getElementById('cancelSelectionBtn').addEventListener('click', exitSelectionMode);
+
+    messagesContainerEl.addEventListener('click', (e) => {
+        if (selectionMode && !e.target.closest('.message-row') && !e.target.closest('#selectionToolbar')) {
+            exitSelectionMode();
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && selectionMode) {
+            exitSelectionMode();
+        }
+    });
 
   </script>
 </body>

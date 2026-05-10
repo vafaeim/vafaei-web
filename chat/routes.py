@@ -196,6 +196,7 @@ def get_messages(chat_id):
                               m.sender_id,
                               m.seen_by,
                               m.attachment,
+                              m.reactions,
                               rm.text AS reply_text,
                               ru.username AS reply_sender_username,
                               rm.sender_id AS reply_sender_id
@@ -218,6 +219,7 @@ def get_messages(chat_id):
                               m.sender_id,
                               m.seen_by,
                               m.attachment,
+                              m.reactions,
                               rm.text AS reply_text,
                               ru.username AS reply_sender_username,
                               rm.sender_id AS reply_sender_id
@@ -257,6 +259,7 @@ def get_messages(chat_id):
             "sender_avatar_url": m["sender_avatar_url"],
             "seen_by": m["seen_by"] or [],
             "attachment": attachment_data,
+            "reactions": m["reactions"] or {},
         }
         if m["reply_to_id"] and m["reply_text"]:
             msg_dict["reply_to"] = {
@@ -935,3 +938,59 @@ from flask import send_from_directory
 @chat_bp.route("/media/uploads/<path:filename>")
 def serve_upload(filename):
     return send_from_directory(UPLOAD_BASE, filename)
+
+
+@chat_bp.route("/api/messages/<int:message_id>/reaction", methods=["POST"])
+def toggle_reaction(message_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Not logged in"}), 401
+
+    data = request.get_json()
+    emoji = data.get("reaction", "").strip()
+    if not emoji:
+        return jsonify({"error": "Reaction emoji required"}), 400
+
+    try:
+        with database() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, chat_id, reactions FROM messages WHERE id = %s",
+                    (message_id,),
+                )
+                msg = cur.fetchone()
+                if not msg:
+                    return jsonify({"error": "Message not found"}), 404
+
+                reactions = msg["reactions"] or {}
+                if emoji in reactions:
+                    user_list = reactions[emoji]
+                    if user_id in user_list:
+                        user_list.remove(user_id)
+                    else:
+                        user_list.append(user_id)
+                    if not user_list:
+                        del reactions[emoji]
+                    else:
+                        reactions[emoji] = user_list
+                else:
+                    reactions[emoji] = [user_id]
+
+                cur.execute(
+                    "UPDATE messages SET reactions = %s WHERE id = %s",
+                    (json.dumps(reactions), message_id),
+                )
+
+                socketio.emit(
+                    "message_reaction",
+                    {
+                        "message_id": message_id,
+                        "reactions": reactions,
+                        "chat_id": msg["chat_id"],
+                    },
+                    room=f"chat_{msg['chat_id']}",
+                )
+
+        return jsonify({"success": True, "reactions": reactions})
+    except RuntimeError:
+        return jsonify({"error": "Database unavailable"}), 503

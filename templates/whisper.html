@@ -2,35 +2,43 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>whisper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>whisper · anonymous</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     :root {
-      --bg: #17212b;
-      --chat-bg: #0e1621;
-      --bubble-sent: #2b5278;
-      --text-primary: #fff;
-      --text-secondary: #aab2bb;
-      --input-bg: #212e3c;
-      --input-border: #2b3a4a;
-      --btn-color: #8ea2b8;
-      --btn-hover-bg: #2b5278;
-      --status-bar-bg: #212e3c;
-      --shadow: 0 2px 10px rgba(0,0,0,0.3);
+      --bg: #0c0c14;
+      --card-bg: rgba(20, 20, 35, 0.8);
+      --chat-bg: #12121f;
+      --bubble-sent: #2a2a40;
+      --bubble-received: #1e1e30;
+      --text-primary: #eaeaea;
+      --text-secondary: #8a8a9a;
+      --input-bg: #1a1a2e;
+      --input-border: #2a2a3e;
+      --btn-color: #7c7c9a;
+      --accent: #6c5ce7;
+      --accent-light: #a78bfa;
+      --danger: #ff6b6b;
+      --success: #34d399;
+      --shadow: 0 8px 30px rgba(0,0,0,0.4);
     }
     body.light-mode {
-      --bg: #f5f5f5;
+      --bg: #f0f2f5;
+      --card-bg: rgba(255, 255, 255, 0.85);
       --chat-bg: #ffffff;
-      --bubble-sent: #e3ffd8;
-      --text-primary: #000;
-      --text-secondary: #707579;
-      --input-bg: #fff;
-      --input-border: #d3d9de;
-      --btn-color: #707579;
-      --btn-hover-bg: #e8ecef;
-      --status-bar-bg: #f5f5f5;
-      --shadow: 0 2px 10px rgba(0,0,0,0.05);
+      --bubble-sent: #e8eaf0;
+      --bubble-received: #f5f5f5;
+      --text-primary: #1a1a2e;
+      --text-secondary: #5a5a6a;
+      --input-bg: #ffffff;
+      --input-border: #d0d0e0;
+      --btn-color: #666;
+      --accent: #6c5ce7;
+      --accent-light: #a78bfa;
+      --shadow: 0 8px 30px rgba(0,0,0,0.08);
     }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
@@ -40,52 +48,85 @@
       align-items: center;
       justify-content: center;
       transition: background 0.4s;
+      color: var(--text-primary);
     }
+
+    /* Phone frame */
     .phone-frame {
       width: 100%;
-      max-width: 400px;
-      height: 85vh;
-      max-height: 700px;
-      background: var(--chat-bg);
-      border-radius: 20px;
+      max-width: 420px;
+      height: 88vh;
+      max-height: 750px;
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 2.5rem;
       box-shadow: var(--shadow);
       display: flex;
       flex-direction: column;
       overflow: hidden;
       position: relative;
     }
+
+    /* Header */
     .status-bar {
-      background: var(--status-bar-bg);
-      padding: 0.8rem 1rem;
+      background: transparent;
+      padding: 1rem 1.2rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid var(--input-border);
     }
-    .status-bar .title {
+    .status-bar .title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .status-icon {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+      font-size: 1rem;
+      box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
+    }
+    .title {
       font-size: 1.1rem;
       font-weight: 600;
       color: var(--text-primary);
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
+    }
+    .subtitle {
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      margin-top: 1px;
     }
     .theme-toggle {
       background: none;
-      border: none;
+      border: 1px solid transparent;
       color: var(--btn-color);
-      font-size: 1.3rem;
+      font-size: 1.2rem;
       cursor: pointer;
       width: 34px; height: 34px;
       display: flex; align-items: center; justify-content: center;
       border-radius: 50%;
+      transition: all 0.3s;
     }
-    .theme-toggle:hover { background: var(--btn-hover-bg); }
+    .theme-toggle:hover {
+      border-color: var(--input-border);
+      background: var(--bubble-sent);
+    }
+
+    /* Messages */
     .messages {
       flex: 1;
-      padding: 1rem 0.8rem;
+      padding: 1rem;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: 0.6rem;
     }
     .message {
       display: flex;
@@ -93,14 +134,19 @@
     }
     .bubble {
       max-width: 80%;
-      padding: 0.6rem 0.9rem;
-      border-radius: 18px 4px 18px 18px;
+      padding: 0.7rem 1rem;
+      border-radius: 1.2rem 0.3rem 1.2rem 1.2rem;
       background: var(--bubble-sent);
       color: var(--text-primary);
       font-size: 0.95rem;
       word-wrap: break-word;
       position: relative;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      animation: messageIn 0.25s ease-out;
+    }
+    @keyframes messageIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     .bubble.emoji-only {
       font-size: 2.5rem;
@@ -109,122 +155,179 @@
       padding: 0.2rem;
     }
     .bubble .time {
-      font-size: 0.65rem;
+      font-size: 0.6rem;
       color: var(--text-secondary);
       float: right;
       margin-left: 0.5rem;
-      margin-top: 0.3rem;
+      margin-top: 0.25rem;
+      opacity: 0.8;
     }
-    .input-bar {
+
+    /* Attachment preview */
+    .preview-area {
+      padding: 0.6rem 1rem;
       background: var(--input-bg);
-      padding: 0.6rem 0.8rem;
       border-top: 1px solid var(--input-border);
-      display: flex;
-      align-items: flex-end;
-      gap: 0.5rem;
+      display: none;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
     }
-    .attach-btn, .voice-btn, .emoji-toggle-btn {
+    .preview-area.active { display: flex; }
+    .preview-area .file-icon {
+      width: 36px; height: 36px;
+      border-radius: 0.5rem;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+    .preview-area .remove-preview {
       background: none;
       border: none;
-      color: var(--btn-color);
-      font-size: 1.5rem;
+      color: var(--danger);
       cursor: pointer;
-      padding: 0.3rem;
-      line-height: 1;
-      transition: color 0.2s;
-    }
-    .attach-btn:hover, .voice-btn:hover, .emoji-toggle-btn:hover { color: #2b9cff; }
-    .voice-btn.recording {
-      color: #ff4d4d;
-    }
-    .text-input {
-      flex: 1;
-      background: transparent;
-      border: none;
-      outline: none;
-      color: var(--text-primary);
-      font-size: 16px;
-      resize: none;
-      max-height: 100px;
-      padding: 0.4rem 0;
-      font-family: inherit;
-    }
-    .send-btn {
-      background: none;
-      border: none;
-      color: #2b9cff;
-      font-size: 1.5rem;
-      cursor: pointer;
-      padding: 0.3rem;
-      line-height: 1;
-      display: none;
-      position: relative;
-    }
-    .send-btn.visible { display: block; }
-    .send-btn:disabled { opacity: 0.5; cursor: default; }
-    .send-spinner {
-      display: none;
-      width: 20px; height: 20px;
-      border: 2px solid rgba(43,156,255,0.3);
-      border-top: 2px solid #2b9cff;
+      font-size: 1rem;
+      padding: 0.2rem 0.4rem;
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
+      transition: background 0.2s;
+      flex-shrink: 0;
     }
-    @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+    .remove-preview:hover { background: rgba(255,107,107,0.1); }
+
+    /* Emoji panel */
     .emoji-panel {
       display: none;
       background: var(--input-bg);
       border-top: 1px solid var(--input-border);
-      padding: 0.5rem 0.3rem;
+      padding: 0.5rem 0.8rem;
       justify-content: center;
-      gap: 0.5rem;
+      gap: 0.6rem;
       flex-wrap: wrap;
     }
     .emoji-panel.open { display: flex; }
     .emoji-panel .emoji-btn {
       background: none;
       border: none;
-      font-size: 1.6rem;
+      font-size: 1.5rem;
       cursor: pointer;
-      padding: 0.3rem;
+      padding: 0.2rem;
+      transition: transform 0.15s;
     }
-    .preview-area {
-      padding: 0.3rem 0.8rem;
+    .emoji-btn:active { transform: scale(1.2); }
+
+    /* Input bar */
+    .input-bar {
       background: var(--input-bg);
+      padding: 0.6rem 0.8rem;
       border-top: 1px solid var(--input-border);
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      font-size: 0.85rem;
-      color: var(--text-secondary);
     }
-    .preview-area .remove-preview {
-      color: #ff4d4d;
+    .icon-btn {
+      background: none;
+      border: none;
+      color: var(--btn-color);
+      font-size: 1.3rem;
       cursor: pointer;
+      padding: 0.4rem;
+      border-radius: 50%;
+      width: 38px; height: 38px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s, color 0.2s;
     }
-    #photoInput { display: none; }
+    .icon-btn:hover { background: var(--bubble-sent); color: var(--text-primary); }
+    .icon-btn.recording {
+      background: var(--danger) !important;
+      color: #fff !important;
+      animation: pulse-rec 1.2s infinite;
+    }
+    @keyframes pulse-rec {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,107,0.4); }
+      50% { box-shadow: 0 0 0 12px rgba(255,107,107,0); }
+    }
+    #imageInput { display: none; }
+
+    .text-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      resize: none;
+      max-height: 100px;
+      padding: 0.4rem 0;
+      font-family: inherit;
+      caret-color: var(--accent);
+    }
+    .text-input::placeholder { color: var(--text-secondary); }
+
+    /* Send button */
+    .send-btn {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.2s, transform 0.2s;
+      box-shadow: 0 4px 12px rgba(108,92,231,0.3);
+      position: relative;
+    }
+    .send-btn.visible { display: flex; }
+    .send-btn:hover { background: var(--accent-light); }
+    .send-btn:disabled { opacity: 0.6; cursor: default; }
+    .send-spinner {
+      display: none;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top: 2px solid #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      position: absolute;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    /* Scrollbar */
     .messages::-webkit-scrollbar { width: 4px; }
     .messages::-webkit-scrollbar-thumb { background: var(--input-border); border-radius: 4px; }
   </style>
 </head>
 <body>
   <div class="phone-frame">
+    <!-- Header -->
     <div class="status-bar">
+      <div class="title-group">
+        <div class="status-icon"><i class="fa-solid fa-ghost"></i></div>
+        <div>
+          <div class="title">whisper</div>
+          <div class="subtitle">completely anonymous</div>
+        </div>
+      </div>
       <button class="theme-toggle" onclick="toggleTheme()" title="switch theme">◑</button>
-      <span class="title">whisper</span>
-      <div style="width:34px;"></div>
     </div>
 
+    <!-- Messages -->
     <div class="messages" id="messagesContainer"></div>
 
-    <div class="preview-area" id="previewArea" style="display:none;">
-      <span id="previewText"></span>
-      <span class="remove-preview" onclick="removeAttachment()">✕</span>
+    <!-- Attachment preview -->
+    <div class="preview-area" id="previewArea">
+      <div class="file-icon" id="previewIcon"><i class="fa-solid fa-file"></i></div>
+      <span id="previewText" style="flex:1;"></span>
+      <button class="remove-preview" onclick="removeAttachment()"><i class="fa-solid fa-xmark"></i></button>
     </div>
 
+    <!-- Emoji panel -->
     <div class="emoji-panel" id="emojiPanel">
       <button class="emoji-btn" onclick="sendEmoji('👍')">👍</button>
       <button class="emoji-btn" onclick="sendEmoji('❤️')">❤️</button>
@@ -234,45 +337,49 @@
       <button class="emoji-btn" onclick="sendEmoji('👋')">👋</button>
     </div>
 
+    <!-- Input bar -->
     <div class="input-bar">
-      <button class="emoji-toggle-btn" id="emojiToggleBtn" onclick="toggleEmojiPanel()">😊</button>
-      <label for="photoInput" class="attach-btn">📎</label>
-      <input type="file" id="photoInput" accept="image/*" onchange="handlePhotoSelect(this)">
-      <button class="voice-btn" id="voiceBtn" onclick="toggleRecording()">🎤</button>
-      <textarea class="text-input" id="messageInput" placeholder="Message" dir="auto" rows="1" oninput="toggleSendButton()"></textarea>
+      <button class="icon-btn" id="emojiToggleBtn" onclick="toggleEmojiPanel()"><i class="fa-solid fa-face-smile"></i></button>
+      <label for="imageInput" class="icon-btn"><i class="fa-solid fa-paperclip"></i></label>
+      <input type="file" id="imageInput" accept="image/*" onchange="handlePhotoSelect(this)">
+      <button class="icon-btn" id="voiceBtn" onclick="toggleRecording()"><i class="fa-solid fa-microphone"></i></button>
+      <textarea class="text-input" id="messageInput" placeholder="Type a message..." dir="auto" rows="1" oninput="toggleSendButton()"></textarea>
       <button class="send-btn" id="sendBtn" onclick="sendMessage()">
-        <span class="send-text">➤</span>
-        <span class="send-spinner" id="sendSpinner"></span>
+        <i class="fa-solid fa-arrow-up send-icon"></i>
+        <div class="send-spinner" id="sendSpinner"></div>
       </button>
     </div>
   </div>
 
   <script>
+    // Theme
     const body = document.body;
     const themeToggleBtn = document.querySelector('.theme-toggle');
     function setTheme(isLight) {
-      if (isLight) { body.classList.add('light-mode'); themeToggleBtn.textContent = '◐'; }
-      else { body.classList.remove('light-mode'); themeToggleBtn.textContent = '◑'; }
+      body.classList.toggle('light-mode', isLight);
+      themeToggleBtn.textContent = isLight ? '◐' : '◑';
       localStorage.setItem('theme', isLight ? 'light' : 'dark');
     }
     function toggleTheme() { setTheme(!body.classList.contains('light-mode')); }
-    (localStorage.getItem('theme') === 'light') ? setTheme(true) : setTheme(false);
+    setTheme(localStorage.getItem('theme') === 'light');
 
+    // Elements
     const messagesContainer = document.getElementById('messagesContainer');
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendBtn');
-    const sendText = document.querySelector('.send-text');
+    const sendIcon = sendButton.querySelector('.send-icon');
     const sendSpinner = document.getElementById('sendSpinner');
-    const photoInput = document.getElementById('photoInput');
+    const imageInput = document.getElementById('imageInput');
     const voiceBtn = document.getElementById('voiceBtn');
     const previewArea = document.getElementById('previewArea');
     const previewText = document.getElementById('previewText');
+    const previewIcon = document.getElementById('previewIcon');
     const emojiPanel = document.getElementById('emojiPanel');
 
     let selectedFile = null;
     let mediaRecorder = null;
     let audioChunks = [];
-    let recording = false;
+    let isRecording = false;
     let isSending = false;
 
     function addMessage(text, isEmojiOnly = false) {
@@ -283,8 +390,7 @@
       bubble.textContent = text;
       const timeSpan = document.createElement('span');
       timeSpan.className = 'time';
-      const now = new Date();
-      timeSpan.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      timeSpan.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       bubble.appendChild(timeSpan);
       msgDiv.appendChild(bubble);
       messagesContainer.appendChild(msgDiv);
@@ -292,11 +398,9 @@
     }
 
     function toggleSendButton() {
-      if (messageInput.value.trim() || selectedFile) {
-        sendButton.classList.add('visible');
-      } else {
-        sendButton.classList.remove('visible');
-      }
+      const hasContent = messageInput.value.trim() || selectedFile;
+      if (hasContent) sendButton.classList.add('visible');
+      else sendButton.classList.remove('visible');
     }
 
     function toggleEmojiPanel() {
@@ -311,78 +415,78 @@
 
     function setSendingState(sending) {
       isSending = sending;
-      if (sending) {
-        sendButton.disabled = true;
-        sendText.style.display = 'none';
-        sendSpinner.style.display = 'inline-block';
-      } else {
-        sendButton.disabled = false;
-        sendText.style.display = 'inline';
-        sendSpinner.style.display = 'none';
-      }
+      sendButton.disabled = sending;
+      sendIcon.style.display = sending ? 'none' : 'block';
+      sendSpinner.style.display = sending ? 'block' : 'none';
+    }
+
+    function showPreview(label, iconClass, fileName) {
+      previewIcon.innerHTML = `<i class="${iconClass}"></i>`;
+      previewText.textContent = fileName || label;
+      previewArea.classList.add('active');
+      toggleSendButton();
     }
 
     function handlePhotoSelect(input) {
       if (input.files.length > 0) {
         selectedFile = input.files[0];
-        previewText.textContent = '📷 ' + selectedFile.name;
-        previewArea.style.display = 'flex';
-        toggleSendButton();
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-        }
+        showPreview('Image', 'fa-solid fa-image', selectedFile.name);
+        if (mediaRecorder && isRecording) mediaRecorder.stop();
       }
     }
 
     function removeAttachment() {
       selectedFile = null;
-      photoInput.value = '';
-      previewArea.style.display = 'none';
+      imageInput.value = '';
+      previewArea.classList.remove('active');
       toggleSendButton();
     }
 
     async function toggleRecording() {
-      if (recording) {
+      if (isRecording) {
         mediaRecorder.stop();
-        recording = false;
-        voiceBtn.classList.remove('recording');
-        voiceBtn.textContent = '🎤';
-      } else {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          try {
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/ogg' });
-          } catch (e) {
-            mediaRecorder = new MediaRecorder(stream);
-          }
-          audioChunks = [];
-          mediaRecorder.ondataavailable = (event) => {
-            audioChunks.push(event.data);
-          };
-          mediaRecorder.onstop = () => {
-            const blob = new Blob(audioChunks, { type: 'audio/ogg' });
-            selectedFile = new File([blob], 'voice_message.ogg', { type: 'audio/ogg' });
-            previewText.textContent = '🎙️ Voice message';
-            previewArea.style.display = 'flex';
-            toggleSendButton();
-            stream.getTracks().forEach(track => track.stop());
-            recording = false;
-            voiceBtn.classList.remove('recording');
-            voiceBtn.textContent = '🎤';
-          };
-          mediaRecorder.start();
-          recording = true;
-          voiceBtn.classList.add('recording');
-          voiceBtn.textContent = '⏹️';
-          removeAttachment();
-        } catch (err) {
-          alert('Microphone access denied.');
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        isRecording = true;
+        voiceBtn.classList.add('recording');
+        voiceBtn.innerHTML = '<i class="fa-solid fa-stop"></i>';
+        showPreview('Recording...', 'fa-solid fa-microphone');
+
+        audioChunks = [];
+        let options = {};
+        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+          options.mimeType = 'audio/webm;codecs=opus';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          options.mimeType = 'audio/webm';
         }
+        mediaRecorder = new MediaRecorder(stream, options);
+
+        mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          const mimeType = options.mimeType || 'audio/webm';
+          const ext = mimeType.includes('ogg') ? 'ogg' : 'webm';
+          const blob = new Blob(audioChunks, { type: mimeType });
+          selectedFile = new File([blob], `voice.${ext}`, { type: mimeType });
+          showPreview('Voice message', 'fa-solid fa-microphone', `voice.${ext}`);
+
+          stream.getTracks().forEach(t => t.stop());
+          isRecording = false;
+          voiceBtn.classList.remove('recording');
+          voiceBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        };
+        mediaRecorder.start();
+        removeAttachment(); // clear previous file
+      } catch (err) {
+        alert('Microphone access denied.');
+        isRecording = false;
+        voiceBtn.classList.remove('recording');
+        voiceBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
       }
     }
-
-    const PROXY_URL = '/whisper/send';
-    const FILE_PROXY_URL = '/whisper/send_file';
 
     async function sendToServer(payload) {
       try {
@@ -391,18 +495,16 @@
           const formData = new FormData();
           formData.append('file', selectedFile);
           if (payload.text) formData.append('text', payload.text);
-          response = await fetch(FILE_PROXY_URL, { method: 'POST', body: formData });
+          response = await fetch('/whisper/send_file', { method: 'POST', body: formData });
         } else {
-          response = await fetch(PROXY_URL, {
+          response = await fetch('/whisper/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
         }
         const result = await response.json();
-        if (!result.success) {
-          console.error('Send failed:', result.error);
-        }
+        if (!result.success) console.error('Send failed:', result.error);
       } catch (err) {
         console.error('Connection error:', err);
       }
@@ -413,6 +515,7 @@
       if (!text && !selectedFile) return;
       if (isSending) return;
 
+      // Show in UI
       if (selectedFile) {
         if (text) addMessage(text);
         addMessage('📎 ' + (selectedFile.type.startsWith('image/') ? 'Photo' : 'Voice message'));
@@ -421,15 +524,15 @@
       }
 
       emojiPanel.classList.remove('open');
-
       setSendingState(true);
 
-      await sendToServer({ text: text });
+      await sendToServer({ text });
 
       messageInput.value = '';
       removeAttachment();
-      sendButton.classList.remove('visible');
       setSendingState(false);
+      toggleSendButton();
+      messageInput.focus();
     }
 
     messageInput.addEventListener('input', function() {
@@ -438,9 +541,7 @@
       toggleSendButton();
     });
 
-    window.addEventListener('load', () => {
-      messageInput.focus();
-    });
+    window.addEventListener('load', () => messageInput.focus());
   </script>
 </body>
 </html>

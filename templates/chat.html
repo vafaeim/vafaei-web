@@ -1276,6 +1276,147 @@
     .reaction-picker .emoji-option:hover {
         transform: scale(1.3);
     }
+
+    #callBtn {
+        background: linear-gradient(135deg, #34d399, #10b981);
+        color: #fff;
+        border: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+        transition: all 0.3s ease;
+        padding: 0;
+    }
+    #callBtn:hover {
+        background: linear-gradient(135deg, #10b981, #059669);
+        box-shadow: 0 5px 14px rgba(16, 185, 129, 0.5);
+        transform: scale(1.08);
+    }
+    #callBtn:active {
+        transform: scale(0.94);
+    }
+
+    #activeCallBar {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: var(--status-bar-bg);
+        border-bottom: 1px solid var(--border-color);
+        z-index: 60;
+        padding: 0.7rem 1.2rem;
+        align-items: center;
+        justify-content: space-between;
+    }
+    #activeCallBar .call-status {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+    }
+    .call-dot {
+        width: 8px;
+        height: 8px;
+        background: #34d399;
+        border-radius: 50%;
+        animation: pulse-dot 1.2s infinite;
+    }
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(1.8); }
+    }
+    #activeCallTimer {
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    #endCallBtn {
+        background: #ff4d4d;
+        color: #fff;
+        border: none;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        font-size: 1.2rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s;
+    }
+    #endCallBtn:hover {
+        background: #e03e3e;
+    }
+    .call-fab {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 30;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #34d399, #10b981);
+        border: none;
+        color: #fff;
+        font-size: 1.1rem;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1.2);
+        opacity: 0.6;
+    }
+
+    .call-fab:hover {
+        opacity: 1;
+        transform: translateY(-50%) scale(1.08);
+        box-shadow: 0 10px 25px rgba(16, 185, 129, 0.5);
+    }
+
+    .call-fab:active {
+        transform: translateY(-50%) scale(0.95);
+    }
+
+    @media (max-width: 700px) {
+        .call-fab {
+            width: 44px;
+            height: 44px;
+            right: 8px;
+            font-size: 1rem;
+        }
+    }
+    #muteCallBtn {
+        background: var(--hover-bg);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        font-size: 1.1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+    #muteCallBtn:hover {
+        background: var(--hover-bg);
+        border-color: #2b9cff;
+    }
+    #muteCallBtn.muted {
+        background: #ff4d4d;
+        border-color: #ff4d4d;
+        color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -1284,11 +1425,6 @@
       <div class="sidebar-header">
           <span class="title"><i class="fa-solid fa-inbox"></i> Inbox</span>
           <div style="display:flex;align-items:center;gap:0.3rem; position: relative;">
-              <!--
-              <button id="savedMessagesBtn" class="theme-toggle" title="Saved Messages" style="font-size:1.2rem;">
-                  <i class="fa-solid fa-bookmark"></i>
-              </button>
-              -->
               <button id="newGroupBtn" class="theme-toggle" title="New Group" style="font-size:1.2rem;">
                   <i class="fa-solid fa-user-group"></i>
               </button>
@@ -1352,6 +1488,20 @@
               <button id="cancelSelectionBtn">Cancel</button>
           </div>
       </div>
+      <div id="activeCallBar">
+          <div class="call-status">
+              <span class="call-dot"></span>
+              <span id="activeCallTimer">00:00</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+              <button id="muteCallBtn" title="Mute microphone">
+                  <i class="fa-solid fa-microphone"></i>
+              </button>
+              <button id="endCallBtn" title="End call">
+                  <i class="fa-solid fa-phone-slash"></i>
+              </button>
+          </div>
+      </div>
       <div class="chat-header">
           <button class="back-btn" onclick="backToChats()">
               <i class="fa-solid fa-arrow-left"></i>
@@ -1374,6 +1524,9 @@
           </div>
           <div class="header-spacer"></div>
       </div>
+      <button id="callFab" class="call-fab" title="Voice Call">
+          <i class="fa-solid fa-phone"></i>
+      </button>
       <div class="messages-container" id="messagesContainer">
         <div class="no-chat-message">Select a chat to start messaging</div>
       </div>
@@ -1408,14 +1561,11 @@
           </button>
           <input type="file" id="imageInput" accept="image/*" hidden>
 
-          <!-- منطقه‌ای که محتواش بین textarea و دکمه‌ی Push-to-Talk عوض می‌شود -->
           <div id="inputContentArea" style="flex:1; display:flex; align-items:center; gap:0.5rem;">
-              <!-- حالت تایپ -->
               <div id="normalTextArea" style="display:flex; flex:1;">
                   <textarea id="chatInput" placeholder="Message" dir="auto" rows="1"
                       oninput="autoResize(this); updateActionSwitch();"></textarea>
               </div>
-              <!-- حالت ضبط -->
               <div id="voiceRecordArea" style="display:none; flex:1; justify-content:center;">
                   <button id="pushToTalkBtn" class="push-to-talk-btn">
                       <i class="fa-solid fa-microphone ptt-icon"></i>
@@ -1424,7 +1574,6 @@
               </div>
           </div>
 
-          <!-- سویچر همیشگی (ارسال / میکروفون / کیبورد) -->
           <span class="action-switch" id="actionSwitch">
               <button class="send-chat-btn" id="sendChatBtn" onclick="sendChatMessage()" title="Send message">
                   <span id="sendIcon">
@@ -1530,6 +1679,26 @@
       </div>
   </div>
 
+  <div id="incomingCallModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.7); z-index:500; justify-content:center; align-items:center;">
+      <div style="background:var(--chat-bg); padding:2rem; border-radius:2rem; text-align:center;
+          border:1px solid var(--border-color); max-width:300px; width:90%;">
+          <div style="font-size:3rem; margin-bottom:0.5rem;">📞</div>
+          <h3 id="incomingCallerName" style="color:var(--text-primary); margin-bottom:0.5rem;"></h3>
+          <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:1.5rem;">is calling you...</p>
+          <div style="display:flex; gap:1rem; justify-content:center;">
+              <button id="acceptCallBtn" style="background:#34d399; color:#fff; border:none;
+                  width:54px; height:54px; border-radius:50%; font-size:1.4rem; cursor:pointer;">
+                  <i class="fa-solid fa-phone"></i>
+              </button>
+              <button id="rejectCallBtn" style="background:#ff4d4d; color:#fff; border:none;
+                  width:54px; height:54px; border-radius:50%; font-size:1.4rem; cursor:pointer;">
+                  <i class="fa-solid fa-phone-slash"></i>
+              </button>
+          </div>
+      </div>
+  </div>
+
   <div id="lightboxOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:1000; align-items:center; justify-content:center;" onclick="closeLightbox()">
       <img id="lightboxImage" src="" style="max-width:90%; max-height:90%; border-radius:8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
       <button style="position:absolute; top:1.5rem; right:1.5rem; background:rgba(255,255,255,0.1); border:none; color:#fff; font-size:2rem; cursor:pointer; width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center;" onclick="closeLightbox()">&times;</button>
@@ -1588,6 +1757,16 @@
     const selectedMessages = new Set();
     let longPressTimer = null;
     const LONG_PRESS_DURATION = 500;
+    let groupCreatorId = null;
+    let isDraggingFab = false;
+    let fabDragStartX = 0;
+    let fabDragStartY = 0;
+    let fabStartLeft = 0;
+    let fabStartTop = 0;
+    const DRAG_THRESHOLD = 5;
+    let fabHasMoved = false;
+    let pendingOfferSdp = null;
+    let isMuted = false;
 
     function enterSelectionMode(msgId) {
         selectionMode = true;
@@ -2055,16 +2234,6 @@
             roundedRect(ctx, x + 1, y, barWidth - 2, barHeight, barWidth / 2);
             ctx.fill();
         }
-
-        // const thumbX = fillFraction * w;
-        // ctx.beginPath();
-        // ctx.arc(thumbX, h/2, 5, 0, 2 * Math.PI);
-        // ctx.fillStyle = '#fff';
-        // ctx.shadowColor = 'rgba(0,0,0,0.5)';
-        // ctx.shadowBlur = 4;
-        // ctx.fill();
-        // ctx.shadowColor = 'transparent';
-        // ctx.shadowBlur = 0;
     }
 
     let currentReactionPicker = null;
@@ -2511,39 +2680,6 @@
         document.getElementById('onlineStatus').textContent = '';
         otherUserId = null;
 
-        // if (type === 'saved') {
-        //     document.getElementById('chatHeader').textContent = 'Saved Messages';
-        //     document.getElementById('headerAvatar').innerHTML = '<i class="fa-solid fa-bookmark"></i>';
-        //     document.getElementById('headerAvatar').style.background = '#2b9cff';
-        //     document.getElementById('onlineStatus').textContent = '';
-        //     otherUserId = currentUserId;
-        //
-        //     renameGroupBtn.style.display = 'none';
-        //     inviteGroupBtn.style.display = 'none';
-        //     document.getElementById('viewMembersBtn').style.display = 'none';
-        //
-        //     fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
-        //         .then(r => r.json())
-        //         .then(messages => {
-        //             document.querySelectorAll('.skeleton-bubble').forEach(el => el.remove());
-        //             if (messages.length > 0) oldestMessageId = messages[0].id;
-        //             messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
-        //             document.getElementById('messagesContainer').scrollTop =
-        //                 document.getElementById('messagesContainer').scrollHeight;
-        //         });
-        //
-        //     socket.emit('join_chat_room', { chat_id: chatId });
-        //     socket.emit('seen', { chat_id: chatId });
-        //     cancelReply();
-        //
-        //     const mainChat = document.getElementById('mainChat');
-        //     mainChat.classList.add('active');
-        //     document.getElementById('inputArea').style.display = 'flex';
-        //
-        //     if (window.innerWidth < 700) document.getElementById('sidebar').classList.add('hidden');
-        //     return;
-        // }
-
         if (type === 'group') {
             socket.emit('join_group', { group_id: chatId });
             otherUserId = chatId;
@@ -2570,31 +2706,6 @@
         const headerEl = document.getElementById('chatHeader');
         const avatarEl = document.getElementById('headerAvatar');
         const viewMembersBtn = document.getElementById('viewMembersBtn');
-
-        // if (type === 'private' && currentUserId && chatId === currentUserId) {
-        //     document.getElementById('chatHeader').textContent = 'Saved Messages';
-        //     document.getElementById('headerAvatar').innerHTML = '<i class="fa-solid fa-bookmark"></i>';
-        //     document.getElementById('headerAvatar').style.background = '#2b9cff';
-        //     document.getElementById('onlineStatus').textContent = '';
-        //     otherUserId = currentUserId;
-        //     renameGroupBtn.style.display = 'none';
-        //     inviteGroupBtn.style.display = 'none';
-        //     viewMembersBtn.style.display = 'none';
-        //
-        //     fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
-        //         .then(r => r.json())
-        //         .then(messages => {
-        //             document.querySelectorAll('.skeleton-bubble').forEach(el => el.remove());
-        //             if (messages.length > 0) oldestMessageId = messages[0].id;
-        //             messages.forEach(msg => appendMessage(msg, msg.sender_username === currentUsername));
-        //             msgContainer.scrollTop = msgContainer.scrollHeight;
-        //         });
-        //
-        //     socket.emit('seen', { chat_id: chatId });
-        //     cancelReply();
-        //     if (window.innerWidth < 700) document.getElementById('sidebar').classList.add('hidden');
-        //     return;
-        // }
 
         if (initialUsername) {
             headerEl.textContent = initialUsername;
@@ -2639,6 +2750,18 @@
                 viewMembersBtn.style.display = 'inline-block';
                 renameGroupBtn.style.display = 'inline-block';
                 inviteGroupBtn.style.display = 'inline-block';
+                groupCreatorId = info.creator_id;
+                const fab = document.getElementById('callFab');
+                fab.style.left = '';
+                fab.style.top = '';
+                fab.style.right = '12px';
+                fab.style.transform = 'translateY(-50%)';
+                if (groupCreatorId && groupCreatorId !== currentUserId) {
+                    fab.style.display = 'flex';
+                    fab.title = 'Call group creator';
+                } else {
+                    fab.style.display = 'none';
+                }
             });
 
             fetch(`/api/group_messages/${chatId}?limit=${MESSAGE_LIMIT}`)
@@ -2689,6 +2812,20 @@
                         if (!otherUserId) otherUserId = chat.other_user_id;
                     }
                 }
+
+                const fab = document.getElementById('callFab');
+                fab.style.left = '';
+                fab.style.top = '';
+                fab.style.right = '12px';
+                fab.style.transform = 'translateY(-50%)';
+                if ((type === 'private' && otherUserId && otherUserId !== currentUserId) ||
+                    (type === 'group' && groupCreatorId && groupCreatorId !== currentUserId)) {
+                    fab.style.display = 'flex';
+                    fab.title = type === 'group' ? 'Call group creator' : 'Voice Call';
+                } else {
+                    fab.style.display = 'none';
+                }
+
                 fetch(`/api/messages/${chatId}?limit=${MESSAGE_LIMIT}`)
                     .then(r => r.json())
                     .then(messages => {
@@ -3672,39 +3809,6 @@
         selectedMembers = [];
     });
 
-    // const savedMessagesBtn = document.getElementById('savedMessagesBtn');
-    // if (savedMessagesBtn) {
-    //     savedMessagesBtn.addEventListener('click', () => {
-    //         if (!currentUserId) {
-    //             fetch('/api/whoami').then(r => r.json()).then(d => {
-    //                 if (d.user_id) {
-    //                     currentUserId = d.user_id;
-    //                     currentUsername = d.username;
-    //                     fetch('/api/start_chat', {
-    //                         method: 'POST',
-    //                         headers: {'Content-Type': 'application/json'},
-    //                         body: JSON.stringify({ user_id: currentUserId })
-    //                     })
-    //                     .then(r => r.json())
-    //                     .then(data => {
-    //                         if (data.chat_id) openChat(data.chat_id, 'saved');
-    //                     });
-    //                 }
-    //             });
-    //         } else {
-    //             fetch('/api/start_chat', {
-    //                 method: 'POST',
-    //                 headers: {'Content-Type': 'application/json'},
-    //                 body: JSON.stringify({ user_id: currentUserId })
-    //             })
-    //             .then(r => r.json())
-    //             .then(data => {
-    //                 if (data.chat_id) openChat(data.chat_id, 'saved');
-    //             });
-    //         }
-    //     });
-    // }
-
     document.getElementById('cancelGroupBtn').addEventListener('click', () => {
         document.getElementById('newGroupModal').style.display = 'none';
     });
@@ -3969,7 +4073,6 @@
         updateActionSwitch();
         document.getElementById('imageInput').value = '';
         document.getElementById('attachmentPreview').classList.remove('active');
-        // toggleSendButton();
     }
 
     document.querySelector('#attachmentPreview .cancel-attach').addEventListener('click', cancelAttachment);
@@ -4000,7 +4103,7 @@
             }
             currentAudio = url;
             currentPlayBtn = playBtn;
-            currentProgress = canvas;   // ذخیره canvas برای seek
+            currentProgress = canvas;
             currentDuration = durationSpan;
             audio.src = url;
             audio.play();
@@ -4102,6 +4205,424 @@
         }
     });
 
+    const rtcConfig = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+    };
+
+    let localCallStream = null;
+    let peerConnection = null;
+    let isInCall = false;
+    let isCaller = false;
+    let callPeerId = null;
+    let callTimerInterval = null;
+    let callStartTime = null;
+    let remoteAudioElement = null;
+    let callLogged = false;
+    let isCallEnding = false;
+
+    function showIncomingCallModal(callerName) {
+        document.getElementById('incomingCallerName').textContent = callerName;
+        document.getElementById('incomingCallModal').style.display = 'flex';
+    }
+
+    function hideIncomingCallModal() {
+        document.getElementById('incomingCallModal').style.display = 'none';
+    }
+
+    function showActiveCallBar() {
+        document.getElementById('activeCallBar').style.display = 'flex';
+        startCallTimer();
+    }
+
+    function hideActiveCallBar() {
+        document.getElementById('activeCallBar').style.display = 'none';
+        stopCallTimer();
+    }
+
+    function startCallTimer() {
+        callStartTime = Date.now();
+        updateCallTimer();
+        callTimerInterval = setInterval(updateCallTimer, 1000);
+    }
+
+    function stopCallTimer() {
+        if (callTimerInterval) {
+            clearInterval(callTimerInterval);
+            callTimerInterval = null;
+        }
+    }
+
+    function updateCallTimer() {
+        const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        document.getElementById('activeCallTimer').textContent =
+            `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    async function startCall(peerId) {
+        const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (tempCtx.state === 'suspended') {
+            await tempCtx.resume();
+        }
+        if (isInCall) return;
+        callPeerId = peerId;
+        isCaller = true;
+        try {
+            localCallStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            showToast('Microphone access denied');
+            return;
+        }
+        createPeerConnection();
+        localCallStream.getTracks().forEach(track => peerConnection.addTrack(track, localCallStream));
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        socket.emit('call_offer', { to: peerId, sdp: offer });
+        socket.emit('call_user', { to: peerId });
+
+        isInCall = true;
+        callLogged = false;
+        isCallEnding = false;
+    }
+
+    async function applyRemoteOffer(sdp) {
+        if (!peerConnection) return;
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('call_answer', { to: callPeerId, sdp: answer });
+    }
+
+    async function acceptIncomingCall() {
+        if (isInCall) return;
+        isCaller = false;
+        hideIncomingCallModal();
+        try {
+            localCallStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            showToast('Microphone access denied');
+            socket.emit('call_rejected', { to: callPeerId });
+            return;
+        }
+
+        createPeerConnection();
+        localCallStream.getTracks().forEach(track => peerConnection.addTrack(track, localCallStream));
+
+        if (pendingOfferSdp) {
+            await applyRemoteOffer(pendingOfferSdp);
+            pendingOfferSdp = null;
+        } else {
+            await new Promise((resolve) => {
+                const check = setInterval(() => {
+                    if (pendingOfferSdp) {
+                        clearInterval(check);
+                        resolve();
+                    }
+                }, 200);
+                setTimeout(() => {
+                    clearInterval(check);
+                    resolve();
+                }, 12000);
+            });
+            if (pendingOfferSdp) {
+                await applyRemoteOffer(pendingOfferSdp);
+                pendingOfferSdp = null;
+            }
+        }
+
+        socket.emit('call_accepted', { to: callPeerId });
+        isInCall = true;
+        callLogged = false;
+        isCallEnding = false;
+        showActiveCallBar();
+    }
+
+    function rejectIncomingCall() {
+        socket.emit('call_rejected', { to: callPeerId });
+        hideIncomingCallModal();
+        callPeerId = null;
+        isCallEnding = false;
+    }
+
+    function toggleMute() {
+        if (!localCallStream) return;
+        isMuted = !isMuted;
+        localCallStream.getAudioTracks().forEach(track => {
+            track.enabled = !isMuted;
+        });
+
+        const muteBtn = document.getElementById('muteCallBtn');
+        if (isMuted) {
+            muteBtn.classList.add('muted');
+            muteBtn.innerHTML = '<i class="fa-solid fa-microphone-slash"></i>';
+            muteBtn.title = 'Unmute microphone';
+        } else {
+            muteBtn.classList.remove('muted');
+            muteBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+            muteBtn.title = 'Mute microphone';
+        }
+    }
+
+    function endCall() {
+        if (isCallEnding) return;
+        isCallEnding = true;
+
+        if (!callLogged && isCaller && callStartTime && activeChatId) {
+            callLogged = true;
+            const endTime = Date.now();
+            const durationSec = Math.floor((endTime - callStartTime) / 1000);
+            const durationStr = formatTime(durationSec);
+            const startTimeStr = new Date(callStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const endTimeStr = new Date(endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const logText = `📞 Voice Call\nStarted: ${startTimeStr}\nEnded: ${endTimeStr}\nDuration: ${durationStr}`;
+
+            const payload = { text: logText };
+            if (activeChatType === 'group') {
+                payload.group_id = activeChatId;
+                socket.emit('send_group_message', payload);
+            } else {
+                payload.chat_id = activeChatId;
+                socket.emit('send_chat_message', payload);
+            }
+        }
+
+        isMuted = false;
+        const muteBtn = document.getElementById('muteCallBtn');
+        if (muteBtn) {
+            muteBtn.classList.remove('muted');
+            muteBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+        }
+
+        if (peerConnection) {
+            peerConnection.close();
+            peerConnection = null;
+        }
+        if (localCallStream) {
+            localCallStream.getTracks().forEach(track => track.stop());
+            localCallStream = null;
+        }
+        if (remoteAudioElement) {
+            remoteAudioElement.srcObject = null;
+            remoteAudioElement.remove();
+            remoteAudioElement = null;
+        }
+        socket.emit('call_ended', { to: callPeerId });
+        isInCall = false;
+        isCaller = false;
+        callPeerId = null;
+        pendingOfferSdp = null;
+        hideActiveCallBar();
+        hideIncomingCallModal();
+    }
+
+    function createPeerConnection() {
+        if (peerConnection) {
+            peerConnection.close();
+            peerConnection = null;
+        }
+        peerConnection = new RTCPeerConnection(rtcConfig);
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('ice_candidate', {
+                    to: callPeerId,
+                    candidate: event.candidate
+                });
+            }
+        };
+
+        peerConnection.ontrack = (event) => {
+            if (remoteAudioElement) {
+                remoteAudioElement.srcObject = null;
+                remoteAudioElement.remove();
+            }
+            remoteAudioElement = new Audio();
+            remoteAudioElement.autoplay = true;
+            remoteAudioElement.srcObject = event.streams[0];
+            document.body.appendChild(remoteAudioElement);
+
+            let playAttempts = 0;
+            const tryPlayRemote = () => {
+                remoteAudioElement.play().then(() => {
+                    console.log('remote audio playing');
+                }).catch(() => {
+                    if (playAttempts < 20) {
+                        playAttempts++;
+                        setTimeout(tryPlayRemote, 500);
+                    }
+                });
+            };
+            tryPlayRemote();
+        };
+
+        peerConnection.oniceconnectionstatechange = () => {
+            if (peerConnection && (peerConnection.iceConnectionState === 'disconnected' ||
+                                  peerConnection.iceConnectionState === 'failed')) {
+                endCall();
+            }
+        };
+    }
+
+    socket.on('incoming_call', (data) => {
+        if (isInCall) {
+            socket.emit('call_rejected', { to: data.from });
+            return;
+        }
+        callPeerId = data.from;
+        showIncomingCallModal(data.username);
+    });
+
+    socket.on('call_accepted', (data) => {
+        if (!isCaller) return;
+    });
+
+    socket.on('call_rejected', () => {
+        showToast('Call declined');
+        endCall();
+    });
+
+    socket.on('call_ended', () => {
+        endCall();
+    });
+
+    socket.on('call_error', (data) => {
+        showToast(data.msg || 'Call error');
+        endCall();
+    });
+
+    socket.on('call_offer', async (data) => {
+        if (peerConnection && peerConnection.signalingState !== 'closed') {
+            await applyRemoteOffer(data.sdp);
+        } else {
+            pendingOfferSdp = data.sdp;
+        }
+    });
+
+    socket.on('call_answer', async (data) => {
+        if (!peerConnection) return;
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+        if (isCaller && isInCall && !callTimerInterval) {
+            showActiveCallBar();
+        }
+    });
+
+    socket.on('ice_candidate', async (data) => {
+        if (data.candidate) {
+            try {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            } catch (e) {
+                console.error('Error adding ICE candidate', e);
+            }
+        }
+    });
+
+    document.getElementById('acceptCallBtn').addEventListener('click', async () => {
+        const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (tempCtx.state === 'suspended') {
+            await tempCtx.resume();
+        }
+        await acceptIncomingCall();
+    });
+    document.getElementById('rejectCallBtn').addEventListener('click', rejectIncomingCall);
+    document.getElementById('endCallBtn').addEventListener('click', endCall);
+
+    window.addEventListener('beforeunload', () => {
+        if (isInCall) endCall();
+    });
+
+    function onFabDragStart(e) {
+        if (e.type === 'mousedown' && e.button !== 0) return;
+        if (isInCall) return;
+
+        e.preventDefault();
+        const touch = e.touches ? e.touches[0] : e;
+        fabDragStartX = touch.clientX;
+        fabDragStartY = touch.clientY;
+
+        const fab = document.getElementById('callFab');
+        const fabRect = fab.getBoundingClientRect();
+        fabStartLeft = fabRect.left;
+        fabStartTop = fabRect.top;
+
+        const container = document.getElementById('mainChat');
+        const containerRect = container.getBoundingClientRect();
+        const leftRelative = fabStartLeft - containerRect.left;
+        const topRelative = fabStartTop - containerRect.top;
+
+        fab.style.left = leftRelative + 'px';
+        fab.style.top = topRelative + 'px';
+        fab.style.right = 'auto';
+        fab.style.transform = 'none';
+
+        isDraggingFab = true;
+        fabHasMoved = false;
+        fab.style.transition = 'none';
+        fab.style.opacity = '1';
+    }
+
+    function onFabDragMove(e) {
+        if (!isDraggingFab) return;
+        e.preventDefault();
+        const touch = e.touches ? e.touches[0] : e;
+        const deltaX = touch.clientX - fabDragStartX;
+        const deltaY = touch.clientY - fabDragStartY;
+
+        if (Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD) {
+            fabHasMoved = true;
+        }
+
+        const fab = document.getElementById('callFab');
+        let newLeft = fabStartLeft + deltaX;
+        let newTop = fabStartTop + deltaY;
+
+        const container = document.getElementById('mainChat');
+        const containerRect = container.getBoundingClientRect();
+        const fabRect = fab.getBoundingClientRect();
+        if (newLeft < containerRect.left) newLeft = containerRect.left;
+        if (newTop < containerRect.top) newTop = containerRect.top;
+        if (newLeft + fabRect.width > containerRect.right) newLeft = containerRect.right - fabRect.width;
+        if (newTop + fabRect.height > containerRect.bottom) newTop = containerRect.bottom - fabRect.height;
+
+        fab.style.left = (newLeft - containerRect.left) + 'px';
+        fab.style.top = (newTop - containerRect.top) + 'px';
+        fab.style.right = 'auto';
+        fab.style.transform = 'none';
+    }
+
+    function onFabDragEnd(e) {
+        if (!isDraggingFab) return;
+        isDraggingFab = false;
+
+        const fab = document.getElementById('callFab');
+        fab.style.transition = '';
+        fab.style.opacity = '';
+
+        if (!fabHasMoved) {
+            const targetId = activeChatType === 'group' ? groupCreatorId : otherUserId;
+            if (targetId && !isInCall) {
+                startCall(targetId);
+            }
+        }
+        fabHasMoved = false;
+    }
+
+    const fab = document.getElementById('callFab');
+
+    fab.addEventListener('mousedown', onFabDragStart);
+    fab.addEventListener('touchstart', onFabDragStart, { passive: false });
+
+    window.addEventListener('mousemove', onFabDragMove);
+    window.addEventListener('touchmove', onFabDragMove, { passive: false });
+
+    window.addEventListener('mouseup', onFabDragEnd);
+    window.addEventListener('touchend', onFabDragEnd);
+
+    document.getElementById('muteCallBtn').addEventListener('click', toggleMute);
   </script>
 </body>
 </html>

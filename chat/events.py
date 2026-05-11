@@ -309,3 +309,101 @@ def handle_group_seen(data):
                     )
     except RuntimeError:
         pass
+
+
+@socketio.on("call_user")
+def handle_call_user(data):
+    caller_id = session.get("user_id")
+    if not caller_id:
+        return
+    target_id = data.get("to")
+    if not target_id:
+        return
+
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT username FROM users WHERE id = %s", (caller_id,))
+                row = cur.fetchone()
+                caller_name = row[0] if row else "Unknown"
+    except:
+        caller_name = "Unknown"
+
+    try:
+        with database() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id FROM chats WHERE (user1_id = %s AND user2_id = %s) OR (user1_id = %s AND user2_id = %s)",
+                    (caller_id, target_id, target_id, caller_id),
+                )
+                if not cur.fetchone():
+                    emit("call_error", {"msg": "Chat not found"})
+                    return
+    except:
+        pass
+
+    emit(
+        "incoming_call",
+        {"from": caller_id, "username": caller_name},
+        room=f"user_{target_id}",
+    )
+
+
+@socketio.on("call_accepted")
+def handle_call_accepted(data):
+    target_id = data.get("to")
+    if not target_id:
+        return
+    emit("call_accepted", {"from": session.get("user_id")}, room=f"user_{target_id}")
+
+
+@socketio.on("call_rejected")
+def handle_call_rejected(data):
+    target_id = data.get("to")
+    if not target_id:
+        return
+    emit("call_rejected", {"from": session.get("user_id")}, room=f"user_{target_id}")
+
+
+@socketio.on("call_ended")
+def handle_call_ended(data):
+    target_id = data.get("to")
+    if not target_id:
+        return
+    emit("call_ended", {"from": session.get("user_id")}, room=f"user_{target_id}")
+
+
+@socketio.on("ice_candidate")
+def handle_ice_candidate(data):
+    target_id = data.get("to")
+    if not target_id or not data.get("candidate"):
+        return
+    emit(
+        "ice_candidate",
+        {"candidate": data["candidate"], "from": session.get("user_id")},
+        room=f"user_{target_id}",
+    )
+
+
+@socketio.on("call_offer")
+def handle_call_offer(data):
+    target_id = data.get("to")
+    if not target_id or not data.get("sdp"):
+        return
+    emit(
+        "call_offer",
+        {"sdp": data["sdp"], "from": session.get("user_id")},
+        room=f"user_{target_id}",
+    )
+
+
+@socketio.on("call_answer")
+def handle_call_answer(data):
+    target_id = data.get("to")
+    if not target_id or not data.get("sdp"):
+        return
+    emit(
+        "call_answer",
+        {"sdp": data["sdp"], "from": session.get("user_id")},
+        room=f"user_{target_id}",
+    )

@@ -1,0 +1,94 @@
+body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #000;
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 1.5rem;
+}
+
+.settings-card {
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0;
+    padding: 2rem;
+    max-width: 400px;
+    width: 100%;
+}
+
+h2 {
+    text-align: center;
+    font-family: 'Georgia', serif;
+    font-size: 1.5rem;
+    font-weight: 400;
+    color: #ccc;
+    margin-bottom: 2rem;
+    letter-spacing: 0.1em;
+}
+
+label {
+    display: block;
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    color: #666;
+    letter-spacing: 0.05em;
+}
+
+input {
+    width: 100%;
+    padding: 0.8rem;
+    margin-top: 0.3rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0;
+    color: white;
+    font-size: 0.9rem;
+    outline: none;
+}
+
+input:focus {
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+button {
+    margin-top: 1.8rem;
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    color: #aaa;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+button:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+#msg {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.success {
+    color: #5f9;
+}
+
+.error {
+    color: #f66;
+}
+
+.note {
+    margin-top: 1.5rem;
+    font-size: 0.65rem;
+    color: #333;
+    text-align: center;
+}

@@ -1,0 +1,294 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Vazirmatn', Tahoma, sans-serif;
+    background: #17212b;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 1rem;
+}
+
+.card {
+    background: #0e1621;
+    padding: 2rem;
+    border-radius: 1.5rem;
+    text-align: center;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.tab-container {
+    display: flex;
+    background: #212e3c;
+    border-radius: 1rem;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    gap: 0;
+}
+
+.tab {
+    flex: 1;
+    padding: 0.6rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    color: #8ea2b8;
+    border-bottom: 2px solid transparent;
+    transition: 0.2s;
+    background: none;
+    border: none;
+    font-family: inherit;
+}
+
+.tab.active {
+    color: #fff;
+    border-bottom-color: #2b9cff;
+}
+
+h2 {
+    margin-bottom: 0.25rem;
+    font-size: 1.5rem;
+}
+
+.subtitle {
+    font-size: 0.85rem;
+    color: #aab2bb;
+    margin-bottom: 1.5rem;
+}
+
+.form-group {
+    margin: 1rem 0;
+    display: none;
+}
+
+.form-group.active {
+    display: block;
+}
+
+input {
+    width: 100%;
+    padding: 0.8rem;
+    font-size: 1rem;
+    background: #212e3c;
+    border: 1px solid #2b3a4a;
+    border-radius: 0.8rem;
+    color: #fff;
+    margin: 0.5rem 0;
+    outline: none;
+    font-family: inherit;
+}
+
+.btn {
+    background: #2b5278;
+    color: #fff;
+    border: none;
+    padding: 0.8rem 2rem;
+    border-radius: 0.8rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 1rem;
+    width: 100%;
+    font-family: inherit;
+}
+
+.btn:hover {
+    background: #3a6a99;
+}
+
+.error {
+    color: #ff4d4d;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+.success {
+    color: #34d399;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+.timer {
+    font-size: 0.9rem;
+    color: #ffb300;
+    margin: 1rem 0;
+}
+
+.hidden {
+    display: none;
+}
+
+.token-box {
+    background: #212e3c;
+    border-radius: 1rem;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.token {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: 0.3rem;
+    color: #2b9cff;
+    user-select: all;
+    word-break: break-all;
+    font-family: 'Courier New', monospace;
+    margin-bottom: 0.5rem;
+}
+
+.copy-hint {
+    font-size: 0.75rem;
+    color: #8ea2b8;
+    margin-top: 0.6rem;
+}
+
+.bot-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    background: #212e3c;
+    border-radius: 1rem;
+    padding: 0.8rem;
+    margin: 1.2rem 0;
+    text-decoration: none;
+    color: #fff;
+    transition: background 0.2s;
+}
+
+.bot-box:hover {
+    background: #2b5278;
+}
+
+.bot-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-image: url('/static/assets/images/verifymebot.png');
+    background-size: cover;
+    background-position: center;
+}
+
+.bot-name {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.bot-link {
+    font-size: 0.75rem;
+    color: #aab2bb;
+}
+
+.btn-secondary {
+    background: transparent;
+    color: #8ea2b8;
+    border: 1px solid #2b3a4a;
+    padding: 0.8rem 1.5rem;
+    border-radius: 0.8rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-family: inherit;
+    margin-top: 0.5rem;
+}
+
+.btn-secondary:hover {
+    background: #212e3c;
+}
+
+.status {
+    margin: 1rem 0;
+    min-height: 1.5rem;
+}
+
+.animate-pulse {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 0.6s linear infinite;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.copy-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 0.6rem 0;
+}
+
+.copy-btn {
+    background: transparent;
+    color: #aab2bb;
+    border: 1px solid #2b3a4a;
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: inherit;
+}
+
+.copy-btn:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.copy-btn:active {
+    transform: scale(0.96);
+}
+
+.copy-btn.copied {
+    background: #34d39922;
+    border-color: #34d399;
+    color: #34d399;
+    pointer-events: none;
+}
+
+.copy-btn.copied i {
+    color: #34d399;
+}

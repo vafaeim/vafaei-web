@@ -8,11 +8,13 @@ from auth import auth_bp
 from chat import chat_bp
 from whisper import whisper_bp
 from douz import douz_bp
+from paste import paste_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(chat_bp)
 app.register_blueprint(whisper_bp)
 app.register_blueprint(douz_bp)
+app.register_blueprint(paste_bp)
 
 
 @app.route("/")

@@ -161,6 +161,14 @@ def init_db():
                 cur.execute(
                     "ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '{}'::jsonb"
                 )
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS pastebins (
+                        id SERIAL PRIMARY KEY,
+                        content TEXT NOT NULL,
+                        slug VARCHAR(16) UNIQUE NOT NULL,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    );
+                """)
         print("INFO: Database initialized successfully.")
     except RuntimeError:
         print("WARNING: Could not initialize database – pool not available.")

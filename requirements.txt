@@ -7,3 +7,4 @@ gunicorn==21.2.0
 psycopg2-binary==2.9.10
 apscheduler==3.10.4
 pillow==12.2.0
+bleach==6.1.0

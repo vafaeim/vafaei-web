@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="aiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <circle cx="100" cy="100" r="90" fill="url(#aiGrad)"/>
+  <circle cx="100" cy="100" r="86" fill="none" stroke="#ffffff" stroke-width="1.5" opacity="0.4"/>
+  <line x1="60" y1="70" x2="78" y2="140" stroke="#ffffff" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="0.8"/>
+  <line x1="60" y1="70" x2="122" y2="140" stroke="#ffffff" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="0.8"/>
+  <line x1="100" y1="60" x2="78" y2="140" stroke="#ffffff" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="0.8"/>
+  <line x1="100" y1="60" x2="122" y2="140" stroke="#ffffff" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="0.8"/>
+  <line x1="140" y1="70" x2="78" y2="140" stroke="#ffffff" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="0.8"/>
+  <line x1="140" y1="70" x2="122" y2="140" stroke="#ffffff" stroke-width="3" stroke-linecap="round" filter="url(#glow)" opacity="0.8"/>
+  <circle cx="60" cy="70" r="8" fill="#ffffff" filter="url(#glow)"/>
+  <circle cx="100" cy="60" r="8" fill="#ffffff" filter="url(#glow)"/>
+  <circle cx="140" cy="70" r="8" fill="#ffffff" filter="url(#glow)"/>
+  <circle cx="78" cy="140" r="8" fill="#ffffff" filter="url(#glow)"/>
+  <circle cx="122" cy="140" r="8" fill="#ffffff" filter="url(#glow)"/>
+</svg>

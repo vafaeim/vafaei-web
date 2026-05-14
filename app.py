@@ -2,7 +2,15 @@ import os
 from extensions import app, socketio, init_pool
 from database import init_db
 from scheduler import start_scheduler
-from flask import request, redirect, url_for, session, render_template
+from flask import (
+    request,
+    redirect,
+    url_for,
+    session,
+    render_template,
+    send_from_directory,
+    make_response,
+)
 
 from auth import auth_bp
 from chat import chat_bp
@@ -30,6 +38,13 @@ def join_via_invite():
     if "user_id" not in session:
         return redirect(url_for("auth.login", next=request.url))
     return redirect(url_for("chat.chat_page") + f"?code={code}")
+
+
+@app.route("/manifest.json")
+def serve_manifest():
+    response = make_response(send_from_directory(app.static_folder, "manifest.json"))
+    response.headers["Content-Type"] = "application/manifest+json"
+    return response
 
 
 with app.app_context():

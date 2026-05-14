@@ -5,224 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>New Paste · amirrrr</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/paste.css') }}">
     <link href="{{ url_for('static', filename='assets/fonts/Vazirmatn/Vazirmatn-font-face.css') }}" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <style>
-        :root {
-            --paste-bg: #0f1724;
-            --paste-panel-bg: #151e2c;
-            --paste-border: #1e2d3d;
-            --paste-text: #e6edf3;
-            --paste-text-secondary: #8899a6;
-        }
-        body.light-mode {
-            --paste-bg: #f0f4f8;
-            --paste-panel-bg: #ffffff;
-            --paste-border: #dde2e7;
-            --paste-text: #1a202c;
-            --paste-text-secondary: #4a5568;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: var(--paste-bg);
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            color: var(--paste-text);
-            transition: background 0.3s, color 0.3s;
-        }
-        .paste-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0.8rem 1.5rem;
-            background: var(--paste-panel-bg);
-            border-bottom: 1px solid var(--paste-border);
-        }
-        .paste-header h1 {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: var(--paste-text);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .paste-header h1 i { color: #6c5ce7; }
-        .btn {
-            background: var(--paste-panel-bg);
-            border: 1px solid var(--paste-border);
-            color: var(--paste-text-secondary);
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-family: inherit;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            white-space: nowrap;
-            text-decoration: none;
-        }
-        .btn:hover { border-color: #6c5ce7; color: var(--paste-text); }
-        .btn.primary {
-            background: linear-gradient(135deg, #6c5ce7, #a78bfa);
-            color: #fff;
-            border: none;
-            padding: 0.7rem 1.5rem;
-            font-weight: 600;
-            font-size: 0.9rem;
-            box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
-        }
-        .btn.primary:hover { box-shadow: 0 6px 20px rgba(108, 92, 231, 0.5); }
-
-        .editor-container {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-        .editor-pane, .preview-pane {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-        }
-        .editor-pane {
-            border-right: 1px solid var(--paste-border);
-        }
-        .pane-header {
-            padding: 0.6rem 1rem;
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--paste-text-secondary);
-            border-bottom: 1px solid var(--paste-border);
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-            background: var(--paste-panel-bg);
-        }
-        textarea {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: var(--paste-text);
-            font-size: 0.95rem;
-            resize: none;
-            padding: 1.5rem;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-            line-height: 1.7;
-            outline: none;
-            caret-color: #6c5ce7;
-            width: 100%;
-        }
-        #preview-content {
-            font-family: 'Vazirmatn', Tahoma, sans-serif;
-            flex: 1;
-            padding: 1.5rem;
-            overflow-y: auto;
-            color: var(--paste-text);
-            line-height: 1.7;
-            font-size: 0.95rem;
-            word-wrap: break-word;
-        }
-        #preview-content pre {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-            background: var(--paste-bg);
-            border: 1px solid var(--paste-border);
-            border-radius: 0.8rem;
-            padding: 1rem;
-            overflow-x: auto;
-            margin: 1rem 0;
-        }
-        #preview-content code {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-            font-size: 0.85rem;
-        }
-        #preview-content ul,
-        #preview-content ol {
-            padding-left: 2rem;
-            margin: 0.8rem 0;
-        }
-        @media (max-width: 768px) {
-            .editor-container { flex-direction: column; }
-            .editor-pane { border-right: none; border-bottom: 1px solid var(--paste-border); }
-            .preview-pane { border-right: none; }
-        }
-        #markdown-output hr,
-        #preview-content hr {
-            margin: 2.5rem 0;
-            border-color: var(--paste-border);
-        }
-        #markdown-output table,
-        #preview-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1.5rem 0;
-            font-size: 0.9rem;
-            overflow: hidden;
-            border-radius: 0.8rem;
-            border: 1px solid var(--paste-border);
-        }
-
-        #markdown-output th,
-        #preview-content th {
-            background: var(--paste-panel-bg);
-            color: var(--paste-text);
-            font-weight: 600;
-            padding: 0.8rem 1rem;
-            text-align: left;
-            border-bottom: 2px solid var(--paste-border);
-            font-family: 'Inter', sans-serif;
-        }
-
-        #markdown-output td,
-        #preview-content td {
-            padding: 0.7rem 1rem;
-            border-bottom: 1px solid var(--paste-border);
-            color: var(--paste-text-secondary);
-        }
-
-        #markdown-output tr:last-child td,
-        #preview-content tr:last-child td {
-            border-bottom: none;
-        }
-
-        #markdown-output tr:hover td,
-        #preview-content tr:hover td {
-            background: rgba(108, 92, 231, 0.05);
-        }
-
-        #markdown-output tbody tr:nth-child(even) td,
-        #preview-content tbody tr:nth-child(even) td {
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        body.light-mode #markdown-output th,
-        body.light-mode #preview-content th {
-            background: #f5f7fa;
-            border-bottom-color: #dde2e7;
-        }
-
-        body.light-mode #markdown-output td,
-        body.light-mode #preview-content td {
-            border-bottom-color: #e8ecf1;
-        }
-
-        body.light-mode #markdown-output tbody tr:nth-child(even) td,
-        body.light-mode #preview-content tbody tr:nth-child(even) td {
-            background: rgba(0, 0, 0, 0.02);
-        }
-    </style>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/favicon.svg') }}">
+    <meta name="theme-color" content="#0f1724">
 </head>
-<body>
+<body class="paste-page paste-editor">
     <div class="paste-header">
         <h1><i class="fa-solid fa-file-lines"></i> New Paste</h1>
-        <button class="btn primary" onclick="document.getElementById('pasteForm').submit()">
-            <i class="fa-solid fa-check"></i> Create Paste
-        </button>
+        <div style="display:flex; align-items:center; gap:1rem;">
+            <select name="expires" form="pasteForm" class="btn"
+                    style="cursor:pointer; font-family:inherit; appearance:auto;
+                        background: var(--paste-panel-bg); color: var(--paste-text);
+                        border: 1px solid var(--paste-border); border-radius:0.5rem;
+                        padding:0.5rem 1rem; font-size:0.85rem;">
+                <option value="600">10 Minutes</option>
+                <option value="3600" selected>1 Hour</option>
+                <option value="21600">6 Hours</option>
+                <option value="86400">1 Day</option>
+                <option value="172800">2 Days</option>
+                <option value="259200">3 Days</option>
+            </select>
+            <button class="btn primary" onclick="document.getElementById('pasteForm').submit()">
+                <i class="fa-solid fa-check"></i> Create Paste
+            </button>
+        </div>
     </div>
     <form id="pasteForm" method="POST" action="{{ url_for('paste.paste_create') }}" style="display:flex; flex:1; overflow:hidden;">
         <div class="editor-container">

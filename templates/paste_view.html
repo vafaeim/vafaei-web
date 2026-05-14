@@ -1,185 +1,56 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="paste-page-html">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Paste {{ slug }} · amirrrr</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/paste.css') }}">
     <link href="{{ url_for('static', filename='assets/fonts/Vazirmatn/Vazirmatn-font-face.css') }}" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <style>
-        :root {
-            --paste-bg: #0f1724;
-            --paste-panel-bg: #151e2c;
-            --paste-border: #1e2d3d;
-            --paste-text: #e6edf3;
-            --paste-text-secondary: #8899a6;
-        }
-        body.light-mode {
-            --paste-bg: #f0f4f8;
-            --paste-panel-bg: #ffffff;
-            --paste-border: #dde2e7;
-            --paste-text: #1a202c;
-            --paste-text-secondary: #4a5568;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: var(--paste-bg);
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            padding: 2rem 1rem;
-            color: var(--paste-text);
-            transition: background 0.3s, color 0.3s;
-            overflow-y: auto;
-        }
-        .container {
-            max-width: 860px;
-            width: 100%;
-        }
-        .toolbar {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-        }
-        .btn {
-            background: var(--paste-panel-bg);
-            border: 1px solid var(--paste-border);
-            color: var(--paste-text-secondary);
-            padding: 0.6rem 1.2rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-family: inherit;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            white-space: nowrap;
-            text-decoration: none;
-        }
-        .btn:hover { border-color: #6c5ce7; color: var(--paste-text); }
-        .btn.primary { background: #6c5ce7; color: #fff; border: none; font-weight: 600; }
-        .btn.primary:hover { background: #7c3aed; }
-
-        #markdown-output {
-            font-family: 'Vazirmatn', Tahoma, sans-serif;
-            background: var(--paste-panel-bg);
-            border: 1px solid var(--paste-border);
-            border-radius: 1.5rem;
-            padding: 2.5rem;
-            color: var(--paste-text);
-            line-height: 1.7;
-            font-size: 1rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            overflow-wrap: break-word;
-        }
-        #markdown-output pre {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-            background: var(--paste-bg);
-            border: 1px solid var(--paste-border);
-            border-radius: 0.8rem;
-            padding: 1.5rem;
-            overflow-x: auto;
-            font-size: 0.9rem;
-            margin: 1rem 0;
-        }
-        #markdown-output code {
-            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-        }
-        #markdown-output ul, #markdown-output ol {
-            padding-left: 2rem;
-            margin: 0.8rem 0;
-        }
-        #slug-display {
-            font-size: 0.8rem;
-            color: var(--paste-text-secondary);
-            margin-bottom: 1rem;
-        }
-        #markdown-output hr,
-        #preview-content hr {
-            margin: 2.5rem 0;
-            border-color: var(--paste-border);
-        }
-        #markdown-output table,
-        #preview-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1.5rem 0;
-            font-size: 0.9rem;
-            overflow: hidden;
-            border-radius: 0.8rem;
-            border: 1px solid var(--paste-border);
-        }
-
-        #markdown-output th,
-        #preview-content th {
-            background: var(--paste-panel-bg);
-            color: var(--paste-text);
-            font-weight: 600;
-            padding: 0.8rem 1rem;
-            text-align: left;
-            border-bottom: 2px solid var(--paste-border);
-            font-family: 'Inter', sans-serif;
-        }
-
-        #markdown-output td,
-        #preview-content td {
-            padding: 0.7rem 1rem;
-            border-bottom: 1px solid var(--paste-border);
-            color: var(--paste-text-secondary);
-        }
-
-        #markdown-output tr:last-child td,
-        #preview-content tr:last-child td {
-            border-bottom: none;
-        }
-
-        #markdown-output tr:hover td,
-        #preview-content tr:hover td {
-            background: rgba(108, 92, 231, 0.05);
-        }
-
-        #markdown-output tbody tr:nth-child(even) td,
-        #preview-content tbody tr:nth-child(even) td {
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        body.light-mode #markdown-output th,
-        body.light-mode #preview-content th {
-            background: #f5f7fa;
-            border-bottom-color: #dde2e7;
-        }
-
-        body.light-mode #markdown-output td,
-        body.light-mode #preview-content td {
-            border-bottom-color: #e8ecf1;
-        }
-
-        body.light-mode #markdown-output tbody tr:nth-child(even) td,
-        body.light-mode #preview-content tbody tr:nth-child(even) td {
-            background: rgba(0, 0, 0, 0.02);
-        }
-    </style>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/favicon.svg') }}">
+    <meta name="theme-color" content="#0f1724">
 </head>
-<body>
+<body class="paste-page">
     <div class="container">
         <div id="slug-display">
-            <i class="fa-solid fa-link"></i> {{ request.host_url }}paste/{{ slug }}
+            <i class="fa-solid fa-link"></i> {{ paste_url }}
+            {% if time_left %}
+            <div style="margin-bottom:0.5rem; font-size:0.8rem; color: var(--paste-text-secondary);">
+                <i class="fa-regular fa-clock"></i> Expires in {{ time_left }}
+            </div>
+            {% endif %}
         </div>
         <div class="toolbar">
             <button class="btn" onclick="copyLink()"><i class="fa-solid fa-copy"></i> Copy Link</button>
-            <a href="{{ url_for('paste.paste_raw', slug=slug) }}" class="btn"><i class="fa-solid fa-file-lines"></i> Raw</a>
+            <a href="{{ raw_url }}" class="btn"><i class="fa-solid fa-file-lines"></i> Raw</a>
             <a href="{{ url_for('paste.paste_create') }}" class="btn primary"><i class="fa-solid fa-plus"></i> New Paste</a>
         </div>
-        <div id="markdown-output"></div>
+
+        <!-- Layout: TOC sidebar + Main content -->
+        <div class="view-layout">
+            <aside class="toc-sidebar" id="tocSidebar">
+                <div class="toc-title">
+                    <i class="fa-solid fa-list"></i> Contents
+                </div>
+                <nav id="tocNav"></nav>
+            </aside>
+            <main class="view-main">
+                <div id="markdown-output"></div>
+            </main>
+        </div>
     </div>
+
+    <!-- TOC toggle button for mobile -->
+    <button class="toc-toggle-btn" id="tocToggleBtn" title="Table of Contents">
+        <i class="fa-solid fa-list-ul"></i>
+    </button>
 
     <script id="paste-content" type="text/markdown">{{ content|safe }}</script>
     <script src="{{ url_for('static', filename='js/marked.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/highlight.min.js') }}"></script>
+    <!-- اگر DOMPurify داری: -->
+    <!-- <script src="{{ url_for('static', filename='js/purify.min.js') }}"></script> -->
     <script>
         marked.setOptions({
             breaks: true,
@@ -194,17 +65,156 @@
         });
 
         const rawContent = document.getElementById('paste-content').textContent;
-        document.getElementById('markdown-output').innerHTML = marked.parse(rawContent);
+        const dirtyHTML = marked.parse(rawContent);
+        // اگر DOMPurify داری:
+        // const cleanHTML = DOMPurify.sanitize(dirtyHTML);
+        // document.getElementById('markdown-output').innerHTML = cleanHTML;
+        document.getElementById('markdown-output').innerHTML = dirtyHTML;
 
-        // هایلایت کدها
+        // Highlight code blocks
         document.querySelectorAll('#markdown-output pre code').forEach(block => hljs.highlightElement(block));
 
-        // ← جهت‌دهی خودکار برای هر بلاک
+        // Auto-direction
         document.querySelectorAll('#markdown-output p, #markdown-output li, #markdown-output h1, #markdown-output h2, #markdown-output h3, #markdown-output h4, #markdown-output h5, #markdown-output h6, #markdown-output blockquote')
             .forEach(el => el.setAttribute('dir', 'auto'));
 
+        // ---- Table of Contents Generation ----
+        function buildTOC() {
+            const tocNav = document.getElementById('tocNav');
+            const headings = document.querySelectorAll('#markdown-output h1, #markdown-output h2, #markdown-output h3, #markdown-output h4, #markdown-output h5, #markdown-output h6');
+            if (headings.length === 0) {
+                tocNav.innerHTML = '<div class="toc-empty">No headings</div>';
+                return;
+            }
+
+            // Assign unique IDs to headings
+            headings.forEach((heading, index) => {
+                if (!heading.id) {
+                    heading.id = 'heading-' + index + '-' + Math.random().toString(36).substr(2, 5);
+                }
+            });
+
+            // Build nested structure
+            const stack = [{ level: 0, children: [] }];
+            headings.forEach(heading => {
+                const level = parseInt(heading.tagName.substring(1));
+                const item = { level, id: heading.id, text: heading.textContent, children: [] };
+
+                while (stack[stack.length - 1].level >= level) {
+                    stack.pop();
+                }
+                stack[stack.length - 1].children.push(item);
+                stack.push(item);
+            });
+
+            function renderList(items) {
+                if (items.length === 0) return '';
+                let html = '<ul class="toc-list">';
+                items.forEach(item => {
+                    const hasChildren = item.children.length > 0;
+                    html += `<li class="toc-item toc-level-${item.level}">`;
+
+                    // Toggle button only if has children
+                    if (hasChildren) {
+                        html += `<button class="toc-toggle" aria-label="Toggle section">▶</button>`;
+                    } else {
+                        html += `<span class="toc-toggle-placeholder"></span>`;
+                    }
+
+                    html += `<a href="#${item.id}" class="toc-link">${escapeHtml(item.text)}</a>`;
+
+                    // Render sublist with a wrapper div for toggling
+                    if (hasChildren) {
+                        html += `<div class="toc-children">`;
+                        html += renderList(item.children);
+                        html += `</div>`;
+                    }
+                    html += `</li>`;
+                });
+                html += '</ul>';
+                return html;
+            }
+
+            tocNav.innerHTML = renderList(stack[0].children);
+
+            // Add event listeners for toggle buttons
+            document.querySelectorAll('.toc-toggle').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // prevent triggering link
+                    const childrenDiv = btn.nextElementSibling.nextElementSibling; // skip <a> then get div.toc-children
+                    if (childrenDiv && childrenDiv.classList.contains('toc-children')) {
+                        childrenDiv.classList.toggle('collapsed');
+                        btn.classList.toggle('collapsed');
+                    }
+                });
+            });
+
+            // Smooth scroll and active state
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const target = document.querySelector(link.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        history.pushState(null, null, link.getAttribute('href'));
+                    }
+                    // Close mobile TOC if open
+                    document.getElementById('tocSidebar').classList.remove('open');
+                });
+            });
+
+            // Highlight current heading on scroll
+            window.addEventListener('scroll', highlightCurrentHeading);
+            highlightCurrentHeading();
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function highlightCurrentHeading() {
+            const headings = [...document.querySelectorAll('#markdown-output h1, #markdown-output h2, #markdown-output h3, #markdown-output h4, #markdown-output h5, #markdown-output h6')];
+            let current = null;
+            headings.forEach(heading => {
+                const rect = heading.getBoundingClientRect();
+                if (rect.top <= 120) {
+                    current = heading.id;
+                }
+            });
+            document.querySelectorAll('.toc-link').forEach(link => {
+                link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+            });
+        }
+
+        // Mobile TOC toggle
+        const tocSidebar = document.getElementById('tocSidebar');
+        const tocToggleBtn = document.getElementById('tocToggleBtn');
+        tocToggleBtn.addEventListener('click', () => {
+            tocSidebar.classList.toggle('open');
+        });
+
+        // Close TOC when clicking outside on mobile
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 900 && tocSidebar.classList.contains('open')) {
+                if (!tocSidebar.contains(e.target) && e.target !== tocToggleBtn && !tocToggleBtn.contains(e.target)) {
+                    tocSidebar.classList.remove('open');
+                }
+            }
+        });
+
+        // Initialize TOC
+        buildTOC();
+
+        // Copy link function
         function copyLink() {
-            const link = window.location.href;
+            const link = '{{ paste_url }}';
             navigator.clipboard.writeText(link).then(() => {
                 const btn = event.target.closest('button');
                 const orig = btn.innerHTML;
@@ -213,7 +223,8 @@
             });
         }
 
-        (function() {
+        // Highlight.js theme
+        function setHighlightTheme() {
             const isLight = document.body.classList.contains('light-mode');
             const link = document.createElement('link');
             link.rel = 'stylesheet';
@@ -221,8 +232,15 @@
             link.href = isLight ?
                 "{{ url_for('static', filename='css/github.min.css') }}" :
                 "{{ url_for('static', filename='css/github-dark.min.css') }}";
+            const old = document.getElementById('hljs-theme');
+            if (old) old.remove();
             document.head.appendChild(link);
-        })();
+        }
+        setHighlightTheme();
+        new MutationObserver(setHighlightTheme).observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class']
+        });
     </script>
 </body>
 </html>

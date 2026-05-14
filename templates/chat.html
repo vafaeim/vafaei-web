@@ -2,9 +2,18 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport"
-              content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-        <title>Chat</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+        <title>Inbox</title>
+        <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/favicon.svg') }}">
+        <meta name="theme-color" content="#0f1724">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="Inbox">
+        <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='assets/icon-180.png') }}">
+        <link rel="apple-touch-icon" sizes="167x167" href="{{ url_for('static', filename='assets/icon-167.png') }}">
+        <link rel="apple-touch-icon" sizes="152x152" href="{{ url_for('static', filename='assets/icon-152.png') }}">
+        <link rel="apple-touch-icon" sizes="120x120" href="{{ url_for('static', filename='assets/icon-120.png') }}">
+        <link rel="manifest" href="/manifest.json">
         <link href="{{ url_for('static', filename='assets/fonts/Vazirmatn/Vazirmatn-font-face.css') }}"
               rel="stylesheet">
         <link rel="stylesheet"
@@ -48,13 +57,13 @@
                                     min-width:180px;
                                     padding:0.4rem 0">
                             <button id="changeAvatarSidebarBtn" class="dropdown-item">
-                                <i class="fa-solid fa-image"></i> Change Avatar
+                                <i class="fa-solid fa-image"></i> Avatar
                             </button>
                             <button id="changeUsernameSidebarBtn" class="dropdown-item">
-                                <i class="fa-solid fa-pen"></i> Change Username
+                                <i class="fa-solid fa-pen"></i> Username
                             </button>
                             <button id="changePasswordSidebarBtn" class="dropdown-item">
-                                <i class="fa-solid fa-key"></i> Change Password
+                                <i class="fa-solid fa-key"></i> Password
                             </button>
                             <div style="height:1px; background:var(--border-color); margin:0.3rem 0;"></div>
                             <button class="dropdown-item" onclick="toggleTheme()">
@@ -661,5 +670,10 @@
         <audio id="voiceAudio" style="display:none;"></audio>
         <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
         <script src="{{ url_for('static', filename='js/chat.js') }}" defer></script>
+        <script>
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}");
+            }
+        </script>
     </body>
 </html>

@@ -1849,3 +1849,22 @@ V o*ice Call Elements
         padding: 0.4rem 1rem;
     }
 }
+
+@supports (padding-top: env(safe-area-inset-top)) {
+    .app-container {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .main-chat {
+        padding-top: env(safe-area-inset-top);
+    }
+
+    #activeCallBar {
+    padding-top: env(safe-area-inset-top);
+    }
+
+    #selectionToolbar {
+    padding-top: env(safe-area-inset-top);
+    }
+}

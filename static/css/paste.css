@@ -1,0 +1,777 @@
+/* ============================================================
+ *  Pastebin Shared Styles
+ *  ============================================================ */
+:root {
+    --paste-bg: #0f1724;
+    --paste-panel-bg: #151e2c;
+    --paste-border: #1e2d3d;
+    --paste-text: #e6edf3;
+    --paste-text-secondary: #8899a6;
+    --paste-accent: #6c5ce7;
+    --paste-accent-light: #a78bfa;
+}
+
+html.paste-page-html {
+    overflow-y: auto !important;
+}
+
+/* ============================================================
+ *  Override chat.css body styles for paste pages
+ *  ============================================================ */
+body.paste-page {
+    display: block;
+    height: auto;
+    min-height: 100vh;
+    justify-content: unset;
+    align-items: unset;
+    overflow-y: auto;
+}
+
+body.paste-page.paste-editor {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+}
+
+body.paste-page .app-container {
+    max-width: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+body.light-mode {
+    --paste-bg: #f0f4f8;
+    --paste-panel-bg: #ffffff;
+    --paste-border: #dde2e7;
+    --paste-text: #1a202c;
+    --paste-text-secondary: #4a5568;
+    --paste-accent: #5a4fcf;
+    --paste-accent-light: #8b7cf6;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: var(--paste-bg);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--paste-text);
+    transition: background 0.3s, color 0.3s;
+}
+
+/* ============================================================
+ *  Header & Toolbar
+ *  ============================================================ */
+.paste-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.8rem 1.5rem;
+    background: var(--paste-panel-bg);
+    border-bottom: 1px solid var(--paste-border);
+}
+
+.paste-header h1 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--paste-text);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.paste-header h1 i {
+    color: var(--paste-accent);
+}
+
+.btn {
+    background: var(--paste-panel-bg);
+    border: 1px solid var(--paste-border);
+    color: var(--paste-text-secondary);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: inherit;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.btn:hover {
+    border-color: var(--paste-accent);
+    color: var(--paste-text);
+}
+
+.btn.primary {
+    background: linear-gradient(135deg, var(--paste-accent), var(--paste-accent-light));
+    color: #fff;
+    border: none;
+    padding: 0.7rem 1.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+}
+
+.btn.primary:hover {
+    box-shadow: 0 6px 20px rgba(108, 92, 231, 0.5);
+}
+
+.toolbar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+/* ============================================================
+ *  Editor Layout
+ *  ============================================================ */
+.editor-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.editor-pane,
+.preview-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.editor-pane {
+    border-right: 1px solid var(--paste-border);
+}
+
+.pane-header {
+    padding: 0.6rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--paste-text-secondary);
+    border-bottom: 1px solid var(--paste-border);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--paste-panel-bg);
+}
+
+textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--paste-text);
+    font-size: 0.95rem;
+    resize: none;
+    padding: 1.5rem;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    line-height: 1.7;
+    outline: none;
+    caret-color: var(--paste-accent);
+    width: 100%;
+    overflow-y: auto;
+}
+
+/* ============================================================
+ *  Markdown Output (view & preview)
+ *  ============================================================ */
+#preview-content,
+#markdown-output {
+font-family: 'Vazirmatn', Tahoma, sans-serif;
+flex: 1;
+padding: 1.5rem;
+overflow-y: auto;
+color: var(--paste-text);
+line-height: 1.8;
+font-size: 0.95rem;
+word-wrap: break-word;
+min-height: 0;
+}
+
+#markdown-output {
+font-size: 1rem;
+background: var(--paste-panel-bg);
+border: 1px solid var(--paste-border);
+border-radius: 1.5rem;
+padding: 2.5rem;
+box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+overflow-wrap: break-word;
+overflow-y: visible;
+}
+
+/* ============================================================
+ *  Typography enhancements for rendered markdown
+ *  ============================================================ */
+
+/* Headings */
+#preview-content h1, #markdown-output h1 {
+font-size: 2.2rem;
+font-weight: 700;
+margin: 2rem 0 1rem;
+color: var(--paste-text);
+border-bottom: 2px solid var(--paste-border);
+padding-bottom: 0.5rem;
+}
+
+#preview-content h2, #markdown-output h2 {
+font-size: 1.8rem;
+font-weight: 600;
+margin: 1.8rem 0 0.8rem;
+color: var(--paste-accent);
+}
+
+#preview-content h3, #markdown-output h3 {
+font-size: 1.5rem;
+font-weight: 600;
+margin: 1.5rem 0 0.6rem;
+color: var(--paste-text);
+}
+
+#preview-content h4, #markdown-output h4 {
+font-size: 1.25rem;
+font-weight: 500;
+margin: 1.2rem 0 0.5rem;
+color: var(--paste-text-secondary);
+}
+
+#preview-content h5, #markdown-output h5 {
+font-size: 1.1rem;
+font-weight: 500;
+margin: 1rem 0 0.4rem;
+color: var(--paste-text-secondary);
+}
+
+#preview-content h6, #markdown-output h6 {
+font-size: 1rem;
+font-weight: 500;
+margin: 0.8rem 0 0.3rem;
+color: var(--paste-text-secondary);
+text-transform: uppercase;
+letter-spacing: 0.5px;
+}
+
+/* Links */
+#preview-content a, #markdown-output a {
+color: var(--paste-accent);
+text-decoration: none;
+border-bottom: 1px solid transparent;
+transition: border-color 0.2s, color 0.2s;
+}
+
+#preview-content a:hover, #markdown-output a:hover {
+color: var(--paste-accent-light);
+border-bottom-color: var(--paste-accent-light);
+}
+
+/* Paragraphs */
+#preview-content p, #markdown-output p {
+margin-bottom: 1rem;
+text-align: justify;
+}
+
+/* Blockquotes */
+#preview-content blockquote, #markdown-output blockquote {
+border-left: 4px solid var(--paste-accent);
+background: rgba(108, 92, 231, 0.05);
+margin: 1.2rem 0;
+padding: 0.8rem 1.2rem;
+border-radius: 0 0.5rem 0.5rem 0;
+color: var(--paste-text-secondary);
+font-style: italic;
+}
+
+/* Lists */
+#preview-content ul, #markdown-output ul {
+list-style: none;
+padding-left: 0;
+margin: 0.8rem 0;
+}
+
+#preview-content ul li, #markdown-output ul li {
+position: relative;
+padding-left: 1.5rem;
+margin-bottom: 0.4rem;
+}
+
+#preview-content ul li::before, #markdown-output ul li::before {
+content: '';
+position: absolute;
+left: 0;
+top: 0.6rem;
+width: 8px;
+height: 8px;
+background: var(--paste-accent);
+border-radius: 50%;
+transform: translateY(-50%);
+}
+
+#preview-content ol, #markdown-output ol {
+list-style: none;
+counter-reset: step-counter;
+padding-left: 0;
+margin: 0.8rem 0;
+}
+
+#preview-content ol li, #markdown-output ol li {
+counter-increment: step-counter;
+position: relative;
+padding-left: 2rem;
+margin-bottom: 0.4rem;
+}
+
+#preview-content ol li::before, #markdown-output ol li::before {
+content: counter(step-counter);
+position: absolute;
+left: 0;
+top: 0.15rem;
+width: 1.5rem;
+height: 1.5rem;
+background: var(--paste-accent);
+color: #fff;
+font-size: 0.8rem;
+font-weight: bold;
+border-radius: 50%;
+display: flex;
+align-items: center;
+justify-content: center;
+}
+
+/* Task lists (checkboxes) */
+#preview-content ul li input[type="checkbox"],
+#markdown-output ul li input[type="checkbox"] {
+appearance: none;
+-webkit-appearance: none;
+width: 1rem;
+height: 1rem;
+border: 2px solid var(--paste-border);
+border-radius: 3px;
+margin-right: 0.5rem;
+vertical-align: middle;
+position: relative;
+cursor: default;
+background: transparent;
+transition: background 0.2s, border-color 0.2s;
+}
+
+#preview-content ul li input[type="checkbox"]:checked,
+#markdown-output ul li input[type="checkbox"]:checked {
+background: var(--paste-accent);
+border-color: var(--paste-accent);
+}
+
+#preview-content ul li input[type="checkbox"]:checked::after,
+#markdown-output ul li input[type="checkbox"]:checked::after {
+content: '';
+position: absolute;
+left: 4px;
+top: 1px;
+width: 4px;
+height: 8px;
+border: solid #fff;
+border-width: 0 2px 2px 0;
+transform: rotate(45deg);
+}
+
+#preview-content ul li:has(input[type="checkbox"])::before,
+#markdown-output ul li:has(input[type="checkbox"])::before {
+display: none; /* hide dot for task items */
+}
+
+/* Inline code */
+#preview-content :not(pre) > code,
+#markdown-output :not(pre) > code {
+background: var(--paste-bg);
+padding: 0.2rem 0.4rem;
+border-radius: 0.3rem;
+font-size: 0.9em;
+border: 1px solid var(--paste-border);
+color: var(--paste-accent-light);
+font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+}
+
+/* Code blocks */
+#preview-content pre,
+#markdown-output pre {
+font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+background: var(--paste-bg);
+border: 1px solid var(--paste-border);
+border-radius: 0.8rem;
+padding: 1rem;
+overflow-x: auto;
+margin: 1rem 0;
+}
+
+#markdown-output pre {
+padding: 1.5rem;
+font-size: 0.9rem;
+}
+
+#preview-content code,
+#markdown-output code {
+font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+font-size: 0.85rem;
+}
+
+/* Images */
+#preview-content img,
+#markdown-output img {
+max-width: 100%;
+height: auto;
+border-radius: 0.8rem;
+margin: 1rem 0;
+box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Horizontal rules */
+#preview-content hr,
+#markdown-output hr {
+border: none;
+height: 2px;
+background: linear-gradient(to right, var(--paste-accent), transparent);
+margin: 2.5rem 0;
+}
+
+/* Tables (already good, slight enhancement) */
+#preview-content table,
+#markdown-output table {
+width: 100%;
+border-collapse: collapse;
+margin: 1.5rem 0;
+font-size: 0.9rem;
+overflow: hidden;
+border-radius: 0.8rem;
+border: 1px solid var(--paste-border);
+}
+
+#preview-content th,
+#markdown-output th {
+background: var(--paste-panel-bg);
+color: var(--paste-text);
+font-weight: 600;
+padding: 0.8rem 1rem;
+text-align: left;
+border-bottom: 2px solid var(--paste-border);
+font-family: 'Inter', sans-serif;
+}
+
+#preview-content td,
+#markdown-output td {
+padding: 0.7rem 1rem;
+border-bottom: 1px solid var(--paste-border);
+color: var(--paste-text-secondary);
+}
+
+#preview-content tr:last-child td,
+#markdown-output tr:last-child td {
+border-bottom: none;
+}
+
+#preview-content tr:hover td,
+#markdown-output tr:hover td {
+background: rgba(108, 92, 231, 0.05);
+}
+
+#preview-content tbody tr:nth-child(even) td,
+#markdown-output tbody tr:nth-child(even) td {
+background: rgba(255, 255, 255, 0.02);
+}
+
+body.light-mode #preview-content th,
+body.light-mode #markdown-output th {
+    background: #f5f7fa;
+    border-bottom-color: #dde2e7;
+}
+
+body.light-mode #preview-content td,
+body.light-mode #markdown-output td {
+    border-bottom-color: #e8ecf1;
+}
+
+body.light-mode #preview-content tbody tr:nth-child(even) td,
+body.light-mode #markdown-output tbody tr:nth-child(even) td {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+#slug-display {
+font-size: 0.8rem;
+color: var(--paste-text-secondary);
+margin-bottom: 1rem;
+}
+
+/* ============================================================
+ *  Responsive
+ *  ============================================================ */
+@media (max-width: 768px) {
+    .editor-container {
+        flex-direction: column;
+    }
+    .editor-pane {
+        border-right: none;
+        border-bottom: 1px solid var(--paste-border);
+    }
+    .preview-pane {
+        border-right: none;
+    }
+}
+
+/* ============================================================
+ *  Container for view page
+ *  ============================================================ */
+.container {
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+/* ============================================================
+ *  View page specific body
+ *  ============================================================ */
+body.paste-page:not(.paste-editor) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 2rem 1rem;
+    overflow-y: auto;
+}
+
+/* ============================================================
+ *  RTL Direction Fixes
+ *  ============================================================ */
+#preview-content li[dir="rtl"],
+#markdown-output li[dir="rtl"] {
+padding-left: 0 !important;
+padding-right: 1.5rem !important;
+}
+
+#preview-content li[dir="rtl"]::before,
+#markdown-output li[dir="rtl"]::before {
+left: auto !important;
+right: 0 !important;
+}
+
+#preview-content ol li[dir="rtl"],
+#markdown-output ol li[dir="rtl"] {
+padding-right: 2rem !important;
+}
+
+#preview-content ol li[dir="rtl"]::before,
+#markdown-output ol li[dir="rtl"]::before {
+left: auto !important;
+right: 0 !important;
+}
+
+#preview-content blockquote[dir="rtl"],
+#markdown-output blockquote[dir="rtl"] {
+border-left: none !important;
+border-right: 4px solid var(--paste-accent) !important;
+border-radius: 0.5rem 0 0 0.5rem !important;
+}
+/* ============================================================
+ *  Table of Contents
+ *  ============================================================ */
+.view-layout {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+.toc-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--paste-panel-bg);
+    border: 1px solid var(--paste-border);
+    border-radius: 1rem;
+    padding: 1.2rem 1rem;
+    position: sticky;
+    top: 1.5rem;
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: transform 0.3s ease;
+    z-index: 20;
+}
+
+.toc-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--paste-text);
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-bottom: 1px solid var(--paste-border);
+    padding-bottom: 0.5rem;
+}
+
+.toc-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.toc-item {
+    margin: 0.2rem 0;
+}
+
+.toc-link {
+    display: block;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--paste-text-secondary);
+    text-decoration: none;
+    transition: all 0.15s;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.toc-link:hover {
+    background: rgba(108, 92, 231, 0.08);
+    color: var(--paste-accent);
+}
+
+.toc-link.active {
+    color: var(--paste-accent);
+    font-weight: 600;
+    background: rgba(108, 92, 231, 0.1);
+}
+
+/* Indentation for heading levels */
+.toc-level-2 .toc-link { padding-left: 1.2rem; }
+.toc-level-3 .toc-link { padding-left: 2rem; }
+.toc-level-4 .toc-link { padding-left: 2.8rem; }
+.toc-level-5 .toc-link { padding-left: 3.6rem; }
+.toc-level-6 .toc-link { padding-left: 4.4rem; }
+
+.view-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.toc-empty {
+    font-size: 0.8rem;
+    color: var(--paste-text-secondary);
+    font-style: italic;
+}
+
+/* Mobile: hide sidebar off-screen */
+.toc-toggle-btn {
+    display: none;
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--paste-accent);
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4);
+    font-size: 1.2rem;
+    cursor: pointer;
+    z-index: 999;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.toc-toggle-btn:hover {
+    transform: scale(1.1);
+}
+
+@media (max-width: 900px) {
+    .view-layout {
+        display: block;
+    }
+
+    .toc-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 280px;
+        max-height: 100%;
+        border-radius: 0;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 998;
+        box-shadow: 5px 0 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .toc-sidebar.open {
+        transform: translateX(0);
+    }
+
+    .toc-toggle-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+/* TOC toggle button */
+.toc-toggle {
+    background: none;
+    border: none;
+    color: var(--paste-text-secondary);
+    font-size: 0.65rem;
+    padding: 0;
+    margin-right: 4px;
+    cursor: pointer;
+    line-height: 1;
+    transition: transform 0.2s;
+    display: inline-block;
+    width: 1em;
+    text-align: center;
+}
+
+.toc-toggle:hover {
+    color: var(--paste-accent);
+}
+
+.toc-toggle.collapsed {
+    transform: rotate(-90deg);
+}
+
+.toc-toggle-placeholder {
+    display: inline-block;
+    width: 1em;
+    margin-right: 4px;
+}
+
+/* Collapsible children container */
+.toc-children {
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    max-height: 500px; /* arbitrary large value */
+    opacity: 1;
+}
+
+.toc-children.collapsed {
+    max-height: 0;
+    opacity: 0;
+}
+
+/* Adjust indentation inside toc-children */
+.toc-children .toc-list {
+    padding-left: 0;
+}
+
+.toc-item {
+    margin: 0.1rem 0;
+}
+
+.toc-link {
+    display: inline; /* changed from block to inline to flow after toggle */
+    vertical-align: middle;
+}

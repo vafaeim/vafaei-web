@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en" class="paste-page-html">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paste Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/paste.css') }}">
+    <link href="{{ url_for('static', filename='assets/fonts/Vazirmatn/Vazirmatn-font-face.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/favicon.svg') }}">
+    <meta name="theme-color" content="#0f1724">
+    <style>
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        .admin-table th, .admin-table td {
+            padding: 0.7rem 1rem;
+            border-bottom: 1px solid var(--paste-border);
+            text-align: left;
+            color: var(--paste-text);
+        }
+        .admin-table th {
+            background: var(--paste-panel-bg);
+            font-weight: 600;
+        }
+        .admin-table tr:hover td {
+            background: rgba(108, 92, 231, 0.05);
+        }
+        .delete-btn {
+            background: #ff4d4d;
+            color: #fff;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .delete-btn:hover {
+            background: #e03e3e;
+        }
+        .expired {
+            color: #ff4d4d;
+            font-weight: bold;
+        }
+        .slug-link {
+            color: var(--paste-accent);
+            text-decoration: none;
+        }
+        .slug-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body class="paste-page">
+    <div class="container" style="padding:1rem;">
+        <h2 style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
+            <span>📋 Pastebin Administration</span>
+            <a href="{{ url_for('paste.paste_create') }}" class="btn primary" style="font-size:0.8rem;">New Paste</a>
+        </h2>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Slug</th>
+                    <th>Created</th>
+                    <th>Expires</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for paste in pastes %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('paste.paste_view', slug=paste.slug) }}" class="slug-link">{{ paste.slug }}</a>
+                    </td>
+                    <td>{{ paste.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>
+                        {% if paste.expires_at %}
+                            {{ paste.expires_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                            Never
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if paste.expired %}
+                            <span class="expired">Expired</span>
+                        {% else %}
+                            Active
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this paste?');">
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="slug" value="{{ paste.slug }}">
+                            <input type="hidden" name="key" value="{{ request.args.get('key') }}">
+                            <button type="submit" class="delete-btn"><i class="fa-solid fa-trash"></i> Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p style="color:var(--paste-text-secondary); font-size:0.8rem;">Total: {{ pastes|length }}</p>
+    </div>
+</body>
+</html>

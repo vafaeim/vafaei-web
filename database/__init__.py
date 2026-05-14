@@ -169,6 +169,9 @@ def init_db():
                         created_at TIMESTAMP DEFAULT NOW()
                     );
                 """)
+                cur.execute(
+                    "ALTER TABLE pastebins ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP"
+                )
         print("INFO: Database initialized successfully.")
     except RuntimeError:
         print("WARNING: Could not initialize database – pool not available.")

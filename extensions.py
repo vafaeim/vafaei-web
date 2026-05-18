@@ -39,7 +39,9 @@ socketio = SocketIO(
     ],
     max_http_buffer_size=10 * 1024 * 1024,
     ping_interval=10,
-    ping_timeout=5,
+    ping_timeout=10,
+    max_payload=0,
+    max_payload_bytes=10 * 1024 * 1024,
 )
 
 db_pool = None

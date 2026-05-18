@@ -60,6 +60,7 @@ let fabHasMoved = false;
 let pendingOfferSdp = null;
 let pendingOfferResolver = null;
 let isMuted = false;
+let callTrackTimeout = null;
 
 function enterSelectionMode(msgId) {
     selectionMode = true;
@@ -700,15 +701,17 @@ socket.on('connect', () => {
 });
 
 socket.on('new_message', (msg) => {
+    const pendingEl = document.getElementById('message-pending-' + msg.id);
+    if (pendingEl) pendingEl.remove();
+
     const chatId = Number(msg.chat_id);
     if (activeChatId === chatId) {
         appendMessage(msg, msg.sender_username === currentUsername);
-        socket.emit('seen', {
-            chat_id: chatId
-        });
+        socket.emit('seen', { chat_id: chatId });
     }
     loadChats();
 });
+
 
 socket.on('new_message_notification', () => {
     loadChats();
@@ -719,14 +722,16 @@ socket.on('error', (data) => {
 });
 
 socket.on('new_group_message', (msg) => {
+    const pendingEl = document.getElementById('message-pending-' + msg.id);
+    if (pendingEl) pendingEl.remove();
+
     if (activeChatId === msg.group_id && activeChatType === 'group') {
         appendMessage(msg, msg.sender_username === currentUsername);
-        socket.emit('group_seen', {
-            group_id: msg.group_id
-        });
+        socket.emit('group_seen', { group_id: msg.group_id });
     }
     loadChats();
 });
+
 
 socket.on('message_seen', (data) => {
     if (data.chat_id === activeChatId) {
@@ -1242,6 +1247,12 @@ function createMessageElement(msg, isSent) {
         senderName.className = 'group-sender-name ' + getUserColorClass(msg.sender_id);
         senderName.textContent = msg.sender_username;
         bubble.appendChild(senderName);
+    }
+
+    row.id = `message-${msg.pending ? ('pending-' + msg.id) : msg.id}`;
+    if (msg.pending) {
+        bubble.style.opacity = '0.7';
+        bubble.style.border = '1px dashed var(--border-color)';
     }
 
     if (msg.deleted) {
@@ -1980,6 +1991,12 @@ async function sendChatMessage() {
     const sendIcon = document.getElementById('sendIcon');
     const sendSpinner = document.getElementById('sendSpinner');
 
+    if (!socket.connected) {
+        showToast('Connection lost. Reconnecting...');
+        resetSendButton(sendBtn, sendIcon, sendSpinner);
+        return;
+    }
+
     sendBtn.disabled = true;
     sendIcon.style.display = 'none';
     sendSpinner.style.display = 'inline-block';
@@ -2018,13 +2035,37 @@ async function sendChatMessage() {
     }
 
     sendPayload.attachment = attachmentPayload;
-    socket.emit(activeChatType === 'group' ? 'send_group_message' : 'send_chat_message', sendPayload);
+
+    const tempMsg = {
+        id: 'pending-' + Date.now(),
+        chat_id: activeChatId,
+        text: text || '',
+        sender_username: currentUsername,
+        sender_id: currentUserId,
+        created_at: new Date().toISOString(),
+        seen_by: [],
+        attachment: attachmentPayload,
+        reply_to: replyToMessage ? {
+            id: replyToMessage.id,
+            text: replyToMessage.text,
+            sender_username: replyToMessage.sender_username,
+            sender_id: replyToMessage.sender_id
+        } : null,
+        reactions: {},
+        edited: false,
+        deleted: false,
+        pending: true
+    };
+
+    appendMessage(tempMsg, true);
 
     document.getElementById('chatInput').value = '';
     autoResize(document.getElementById('chatInput'));
     cancelAttachment();
     document.getElementById('chatInput').focus();
     resetSendButton(sendBtn, sendIcon, sendSpinner);
+
+    socket.emit(activeChatType === 'group' ? 'send_group_message' : 'send_chat_message', sendPayload);
 }
 
 function resetSendButton(btn, icon, spinner) {
@@ -2767,6 +2808,13 @@ function updateCallTimer() {
 }
 
 async function startCall(peerId) {
+    if (!window.callAudioCtx) {
+        window.callAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (window.callAudioCtx.state === 'suspended') {
+        await window.callAudioCtx.resume();
+    }
+
     const tempCtx = new(window.AudioContext || window.webkitAudioContext)();
     if (tempCtx.state === 'suspended') {
         await tempCtx.resume();
@@ -2817,15 +2865,17 @@ async function acceptIncomingCall() {
     isCaller = false;
     hideIncomingCallModal();
     try {
-        localCallStream = await navigator.mediaDevices.getUserMedia({
-            audio: true
-        });
+        localCallStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
         showToast('Microphone access denied');
-        socket.emit('call_rejected', {
-            to: callPeerId
-        });
+        socket.emit('call_rejected', { to: callPeerId });
         return;
+    }
+    if (!window.callAudioCtx) {
+        window.callAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (window.callAudioCtx.state === 'suspended') {
+        await window.callAudioCtx.resume();
     }
 
     createPeerConnection();
@@ -2938,6 +2988,14 @@ function endCall() {
         remoteAudioElement.remove();
         remoteAudioElement = null;
     }
+    if (window.callAudioCtx) {
+        window.callAudioCtx.close();
+        window.callAudioCtx = null;
+    }
+    if (callTrackTimeout) {
+        clearTimeout(callTrackTimeout);
+        callTrackTimeout = null;
+    }
     socket.emit('call_ended', {
         to: callPeerId
     });
@@ -2966,28 +3024,39 @@ function createPeerConnection() {
     };
 
     peerConnection.ontrack = (event) => {
+        if (!window.callAudioCtx) {
+            window.callAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (window.callAudioCtx.state === 'suspended') {
+            window.callAudioCtx.resume().catch(() => {});
+        }
+
         if (remoteAudioElement) {
             remoteAudioElement.srcObject = null;
             remoteAudioElement.remove();
+            remoteAudioElement = null;
         }
+
         remoteAudioElement = new Audio();
         remoteAudioElement.autoplay = true;
         remoteAudioElement.srcObject = event.streams[0];
         document.body.appendChild(remoteAudioElement);
 
-        const audioCtx = new(window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume().catch(() => {});
-        }
+        const streamNode = window.callAudioCtx.createMediaStreamSource(event.streams[0]);
+        streamNode.connect(window.callAudioCtx.destination);
 
         let playAttempts = 0;
         const tryPlayRemote = () => {
             remoteAudioElement.play().then(() => {
                 console.log('remote audio playing');
+                if (callTrackTimeout) {
+                    clearTimeout(callTrackTimeout);
+                    callTrackTimeout = null;
+                }
             }).catch(() => {
-                if (playAttempts < 20) {
+                if (playAttempts < 30) {
                     playAttempts++;
-                    setTimeout(tryPlayRemote, 500);
+                    setTimeout(tryPlayRemote, 1000);
                 }
             });
         };
@@ -2996,10 +3065,17 @@ function createPeerConnection() {
 
     peerConnection.oniceconnectionstatechange = () => {
         if (peerConnection && (peerConnection.iceConnectionState === 'disconnected' ||
-                peerConnection.iceConnectionState === 'failed')) {
+            peerConnection.iceConnectionState === 'failed')) {
+            endCall();
+            }
+    };
+
+    callTrackTimeout = setTimeout(() => {
+        if (!remoteAudioElement || !remoteAudioElement.srcObject) {
+            showToast('Could not connect audio');
             endCall();
         }
-    };
+    }, 45000);
 }
 
 socket.on('incoming_call', (data) => {
@@ -3011,6 +3087,10 @@ socket.on('incoming_call', (data) => {
     }
     callPeerId = data.from;
     showIncomingCallModal(data.username);
+});
+
+socket.on('disconnect', () => {
+    if (isInCall) endCall();
 });
 
 socket.on('call_accepted', (data) => {

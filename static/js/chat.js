@@ -701,12 +701,20 @@ socket.on('connect', () => {
 });
 
 socket.on('new_message', (msg) => {
-    const pendingEl = document.getElementById('message-pending-' + msg.id);
-    if (pendingEl) pendingEl.remove();
-
     const chatId = Number(msg.chat_id);
     if (activeChatId === chatId) {
-        appendMessage(msg, msg.sender_username === currentUsername);
+        let replaced = false;
+        if (msg.sender_username === currentUsername) {
+            const pendingEl = document.querySelector('.message-row[data-pending="true"]');
+            if (pendingEl) {
+                const newRow = createMessageElement(msg, true);
+                pendingEl.replaceWith(newRow);
+                replaced = true;
+            }
+        }
+        if (!replaced) {
+            appendMessage(msg, msg.sender_username === currentUsername);
+        }
         socket.emit('seen', { chat_id: chatId });
     }
     loadChats();
@@ -722,11 +730,19 @@ socket.on('error', (data) => {
 });
 
 socket.on('new_group_message', (msg) => {
-    const pendingEl = document.getElementById('message-pending-' + msg.id);
-    if (pendingEl) pendingEl.remove();
-
     if (activeChatId === msg.group_id && activeChatType === 'group') {
-        appendMessage(msg, msg.sender_username === currentUsername);
+        let replaced = false;
+        if (msg.sender_username === currentUsername) {
+            const pendingEl = document.querySelector('.message-row[data-pending="true"]');
+            if (pendingEl) {
+                const newRow = createMessageElement(msg, true);
+                pendingEl.replaceWith(newRow);
+                replaced = true;
+            }
+        }
+        if (!replaced) {
+            appendMessage(msg, msg.sender_username === currentUsername);
+        }
         socket.emit('group_seen', { group_id: msg.group_id });
     }
     loadChats();
@@ -1249,8 +1265,9 @@ function createMessageElement(msg, isSent) {
         bubble.appendChild(senderName);
     }
 
-    row.id = `message-${msg.pending ? ('pending-' + msg.id) : msg.id}`;
+    row.id = `message-${msg.id}`;
     if (msg.pending) {
+        row.dataset.pending = 'true';
         bubble.style.opacity = '0.7';
         bubble.style.border = '1px dashed var(--border-color)';
     }
